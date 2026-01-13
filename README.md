@@ -1,27 +1,21 @@
 # OppNDA
 
-**ONE Simulator Network Data Analyzer** - A web-based analysis toolkit for processing and visualizing simulation results from the [ONE Simulator](https://github.com/akeranen/the-one).
+**ONE Simulator Network Data Analyzer** — A web-based toolkit for configuring ONE Simulator scenarios and analyzing simulation results.
 
 ![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
 ![Flask](https://img.shields.io/badge/Flask-2.0+-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)
 
 ## Features
 
-- 📊 **Report Averaging** - Aggregate raw simulation reports across multiple seeds to produce averaged metrics
-- 📈 **Visualization Suite** - Generate 3D surfaces, line plots, violin plots, heatmaps, and pair plots
-- 🤖 **Regression Analysis** - Machine learning models to predict network performance
-- 🌐 **Web Interface** - Modern, responsive GUI for configuration and analysis
-- ⚙️ **Flexible Configuration** - JSON-based settings for all analysis parameters
+- 🎛️ **Scenario Configuration** — Generate ONE Simulator configuration files through an intuitive web interface
+- 📊 **Report Averaging** — Aggregate raw simulation reports across multiple seeds
+- 📈 **Visualization Suite** — Generate 3D surfaces, line plots, violin plots, heatmaps, and pair plots
+- 🤖 **Regression Analysis** — Machine learning models to predict network performance
+- ⚙️ **Flexible Configuration** — JSON-based settings for all analysis parameters
 
-## Quick Start
-
-### Prerequisites
-
-- Python 3.9 or higher
-- pip package manager
-
-### Installation
+## Installation
 
 ```bash
 # Clone the repository
@@ -37,10 +31,10 @@ python run.py
 
 The web interface will be available at `http://127.0.0.1:5001`
 
-### Docker Installation
+### Docker
 
 ```bash
-# Build and run with Docker Compose
+# Using Docker Compose
 docker-compose up -d
 
 # Or build manually
@@ -50,44 +44,53 @@ docker run -p 5001:5001 oppnda
 
 ## Usage
 
-### 1. Report Averaging
+### Scenario Configuration
 
-Average raw ONE Simulator reports across multiple simulation seeds:
+Create ONE Simulator configuration files using the web GUI:
+
+1. Open `http://127.0.0.1:5001` in your browser
+2. Configure scenario settings (name, duration, world size, etc.)
+3. Add interfaces, groups, events, and reports
+4. Export the configuration file
+
+> 📖 **See [ONE_PARAMETERS.md](ONE_PARAMETERS.md) for a complete reference of all ONE Simulator parameters and their OppNDA field mappings.**
+
+### Report Averaging
+
+Aggregate raw simulation reports across multiple seeds:
 
 1. Place your raw report files in a directory (e.g., `reports/`)
-2. Open the web interface and navigate to **Report Averaging**
-3. Configure the filename pattern to match your file naming convention
+2. Navigate to the **Post-Processing** section
+3. Configure filename patterns to match your naming convention
 4. Run the averager to generate averaged reports
 
-### 2. Analysis & Visualization
+### Analysis & Visualization
 
-Generate publication-ready plots from averaged data:
+Generate publication-ready plots:
 
-1. Navigate to **Analysis** tab
-2. Select your report directory and report types
-3. Configure plot settings (sizes, fonts, color schemes)
-4. Run analysis to generate visualizations
+1. Select your averaged report directory and report types
+2. Configure plot settings (sizes, fonts, color schemes)
+3. Run analysis to generate 3D surfaces, line plots, violin plots, and more
 
-### 3. Regression Analysis
+### Regression Analysis
 
-Build machine learning models to understand network performance:
+Build ML models to understand network performance:
 
-1. Navigate to **Regression** tab
-2. Select input CSV files (generated from analysis)
-3. Choose target variable and predictors
-4. Train and evaluate multiple ML models
+1. Select input CSV files (generated from analysis)
+2. Choose target variable and predictors
+3. Train and compare multiple ML models (Linear, Ridge, Random Forest, etc.)
 
 ## Configuration
 
-Configuration files are located in the `config/` directory:
+Configuration files in `config/`:
 
 | File | Description |
 |------|-------------|
 | `averager_config.json` | Report averaging parameters |
-| `analysis_config.json` | Visualization and analysis settings |
+| `analysis_config.json` | Visualization and plot settings |
 | `regression_config.json` | ML model configurations |
 
-See the [`examples/`](examples/) directory for sample configurations.
+See [`examples/`](examples/) for sample configurations.
 
 ## Project Structure
 
@@ -108,20 +111,30 @@ oppnda/
 │   └── config.js        # Frontend logic
 ├── examples/            # Example configurations
 ├── tests/               # Test suite
-├── run.py               # Application entry point
-└── requirements.txt     # Python dependencies
+├── run.py               # Entry point
+└── requirements.txt     # Dependencies
 ```
 
-## API Reference
+## Testing
 
-OppNDA provides a REST API for programmatic access:
+```bash
+# Run all tests
+pytest tests/ -v
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/averager/run` | POST | Execute report averaging |
-| `/api/analysis/run` | POST | Run visualization analysis |
-| `/api/regression/run` | POST | Execute regression analysis |
-| `/api/config/<type>` | GET/POST | Get/set configuration |
+# Run with coverage
+pytest tests/ --cov=app --cov=core
+```
+
+Tests include:
+- Config validation tests
+- Module import tests  
+- Flask app integration tests
+
+## Documentation
+
+- **[ONE_PARAMETERS.md](ONE_PARAMETERS.md)** — Complete ONE Simulator parameter reference
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — Contribution guidelines
+- **[examples/](examples/)** — Example configuration files
 
 ## Contributing
 
@@ -129,9 +142,11 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
+
+© 2026 [DHMAI Network Research Group](https://dhmairg.net)
 
 ## Acknowledgments
 
-- [ONE Simulator](https://github.com/akeranen/the-one) - The Opportunistic Network Environment simulator
+- [ONE Simulator](https://github.com/akeranen/the-one) — The Opportunistic Network Environment simulator
 - Built with [Flask](https://flask.palletsprojects.com/), [Matplotlib](https://matplotlib.org/), [Seaborn](https://seaborn.pydata.org/), and [scikit-learn](https://scikit-learn.org/)
