@@ -133,6 +133,7 @@ class ReportAverager:
         """Read and parse a report file (legacy, kept for compatibility)"""
         separator = self.config.get('data_separator', ':')
         ignore_fields = set(self.config.get('ignore_fields', []))
+        data = {}
         
         try:
             with open(filepath, 'r') as f:

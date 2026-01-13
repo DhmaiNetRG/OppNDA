@@ -21,7 +21,7 @@ ANALYSIS_CONFIG_SCHEMA = {
     "plot_settings": []
 }
 
-BATCH_CONFIG_SCHEMA = {
+AVERAGER_CONFIG_SCHEMA = {
     "folder": None,
     "filename_pattern": ["delimiter", "components"],
     "average_groups": []
@@ -35,120 +35,144 @@ REGRESSION_CONFIG_SCHEMA = {
 }
 
 
-class ConfigTestResult:
-    """Holds test result information"""
-    def __init__(self, name, passed, message=""):
-        self.name = name
-        self.passed = passed
-        self.message = message
-    
-    def __str__(self):
-        status = "[PASS]" if self.passed else "[FAIL]"
-        return f"{status}: {self.name}" + (f" - {self.message}" if self.message else "")
+def _check_json_valid(filepath):
+    """Helper: Check that a JSON file is valid"""
+    with open(filepath, 'r') as f:
+        return json.load(f)
 
 
-def test_json_valid(filepath):
-    """Test that a JSON file is valid"""
-    try:
-        with open(filepath, 'r') as f:
-            json.load(f)
-        return ConfigTestResult(f"JSON Valid: {os.path.basename(filepath)}", True)
-    except json.JSONDecodeError as e:
-        return ConfigTestResult(f"JSON Valid: {os.path.basename(filepath)}", False, str(e))
-    except FileNotFoundError:
-        return ConfigTestResult(f"JSON Valid: {os.path.basename(filepath)}", False, "File not found")
+def _check_schema(config, schema):
+    """Helper: Check that a config has required keys"""
+    missing_keys = []
+    for key, subkeys in schema.items():
+        if key not in config:
+            missing_keys.append(key)
+        elif subkeys and isinstance(subkeys, list):
+            for subkey in subkeys:
+                if subkey not in config[key]:
+                    missing_keys.append(f"{key}.{subkey}")
+    return missing_keys
 
 
-def test_schema(filepath, schema, config_name):
-    """Test that a config file has required keys"""
-    try:
-        with open(filepath, 'r') as f:
-            config = json.load(f)
-        
-        missing_keys = []
-        for key, subkeys in schema.items():
-            if key not in config:
-                missing_keys.append(key)
-            elif subkeys and isinstance(subkeys, list):
-                for subkey in subkeys:
-                    if subkey not in config[key]:
-                        missing_keys.append(f"{key}.{subkey}")
-        
-        if missing_keys:
-            return ConfigTestResult(f"Schema: {config_name}", False, f"Missing: {missing_keys}")
-        return ConfigTestResult(f"Schema: {config_name}", True)
-    except Exception as e:
-        return ConfigTestResult(f"Schema: {config_name}", False, str(e))
+# ============================================================================
+# PYTEST-COMPATIBLE TESTS (no fixtures, work standalone too)
+# ============================================================================
+
+def test_analysis_config_json_valid():
+    """Test that analysis_config.json is valid JSON"""
+    config_path = os.path.join(BASE_DIR, "config", "analysis_config.json")
+    config = _check_json_valid(config_path)
+    assert config is not None
 
 
-def test_config_read_write(filepath):
-    """Test that config can be read, modified, and written back"""
-    try:
-        # Read
-        with open(filepath, 'r') as f:
-            original = json.load(f)
-        
-        # Write back (without modification)
-        temp_path = filepath + ".test"
-        with open(temp_path, 'w') as f:
-            json.dump(original, f, indent=2)
-        
-        # Verify
-        with open(temp_path, 'r') as f:
-            reloaded = json.load(f)
-        
-        # Cleanup
-        os.remove(temp_path)
-        
-        if original == reloaded:
-            return ConfigTestResult(f"Read/Write: {os.path.basename(filepath)}", True)
-        else:
-            return ConfigTestResult(f"Read/Write: {os.path.basename(filepath)}", False, "Data mismatch after write")
-    except Exception as e:
-        if os.path.exists(filepath + ".test"):
-            os.remove(filepath + ".test")
-        return ConfigTestResult(f"Read/Write: {os.path.basename(filepath)}", False, str(e))
+def test_analysis_config_schema():
+    """Test that analysis_config.json has required keys"""
+    config_path = os.path.join(BASE_DIR, "config", "analysis_config.json")
+    config = _check_json_valid(config_path)
+    missing = _check_schema(config, ANALYSIS_CONFIG_SCHEMA)
+    assert len(missing) == 0, f"Missing keys: {missing}"
 
+
+def test_analysis_config_read_write(tmp_path):
+    """Test that analysis config can be read and written"""
+    config_path = os.path.join(BASE_DIR, "config", "analysis_config.json")
+    config = _check_json_valid(config_path)
+    temp_file = tmp_path / "test_config.json"
+    with open(temp_file, 'w') as f:
+        json.dump(config, f, indent=2)
+    with open(temp_file, 'r') as f:
+        reloaded = json.load(f)
+    assert config == reloaded
+
+
+def test_averager_config_json_valid():
+    """Test that averager_config.json is valid JSON"""
+    config_path = os.path.join(BASE_DIR, "config", "averager_config.json")
+    config = _check_json_valid(config_path)
+    assert config is not None
+
+
+def test_averager_config_schema():
+    """Test that averager_config.json has required keys"""
+    config_path = os.path.join(BASE_DIR, "config", "averager_config.json")
+    config = _check_json_valid(config_path)
+    missing = _check_schema(config, AVERAGER_CONFIG_SCHEMA)
+    assert len(missing) == 0, f"Missing keys: {missing}"
+
+
+def test_averager_config_read_write(tmp_path):
+    """Test that averager config can be read and written"""
+    config_path = os.path.join(BASE_DIR, "config", "averager_config.json")
+    config = _check_json_valid(config_path)
+    temp_file = tmp_path / "test_config.json"
+    with open(temp_file, 'w') as f:
+        json.dump(config, f, indent=2)
+    with open(temp_file, 'r') as f:
+        reloaded = json.load(f)
+    assert config == reloaded
+
+
+def test_regression_config_json_valid():
+    """Test that regression_config.json is valid JSON"""
+    config_path = os.path.join(BASE_DIR, "config", "regression_config.json")
+    config = _check_json_valid(config_path)
+    assert config is not None
+
+
+def test_regression_config_schema():
+    """Test that regression_config.json has required keys"""
+    config_path = os.path.join(BASE_DIR, "config", "regression_config.json")
+    config = _check_json_valid(config_path)
+    missing = _check_schema(config, REGRESSION_CONFIG_SCHEMA)
+    assert len(missing) == 0, f"Missing keys: {missing}"
+
+
+def test_regression_config_read_write(tmp_path):
+    """Test that regression config can be read and written"""
+    config_path = os.path.join(BASE_DIR, "config", "regression_config.json")
+    config = _check_json_valid(config_path)
+    temp_file = tmp_path / "test_config.json"
+    with open(temp_file, 'w') as f:
+        json.dump(config, f, indent=2)
+    with open(temp_file, 'r') as f:
+        reloaded = json.load(f)
+    assert config == reloaded
+
+
+# ============================================================================
+# STANDALONE RUNNER
+# ============================================================================
 
 def run_config_tests():
-    """Run all config file tests"""
-    results = []
-    
-    # Updated paths to config/ directory
-    config_dir = os.path.join(BASE_DIR, "config")
-    config_files = [
-        (os.path.join(config_dir, "analysis_config.json"), ANALYSIS_CONFIG_SCHEMA, "analysis_config"),
-        (os.path.join(config_dir, "batch_config.json"), BATCH_CONFIG_SCHEMA, "batch_config"),
-        (os.path.join(config_dir, "regression_config.json"), REGRESSION_CONFIG_SCHEMA, "regression_config"),
-    ]
-    
+    """Run all config file tests (standalone mode)"""
     print("\n" + "="*60)
     print("CONFIG FILE TESTS")
     print("="*60)
     
-    for filepath, schema, name in config_files:
-        # Test JSON validity
-        result = test_json_valid(filepath)
-        results.append(result)
-        print(result)
-        
-        # Test schema
-        if result.passed:
-            result = test_schema(filepath, schema, name)
-            results.append(result)
-            print(result)
-            
-            # Test read/write
-            result = test_config_read_write(filepath)
-            results.append(result)
-            print(result)
+    tests = [
+        ("Analysis JSON Valid", test_analysis_config_json_valid),
+        ("Analysis Schema Valid", test_analysis_config_schema),
+        ("Averager JSON Valid", test_averager_config_json_valid),
+        ("Averager Schema Valid", test_averager_config_schema),
+        ("Regression JSON Valid", test_regression_config_json_valid),
+        ("Regression Schema Valid", test_regression_config_schema),
+    ]
     
-    passed = sum(1 for r in results if r.passed)
-    total = len(results)
+    passed = 0
+    total = len(tests)
+    
+    for name, test_func in tests:
+        try:
+            test_func()
+            print(f"[PASS]: {name}")
+            passed += 1
+        except AssertionError as e:
+            print(f"[FAIL]: {name} - {e}")
+        except Exception as e:
+            print(f"[FAIL]: {name} - {e}")
+    
     print(f"\nConfig Tests: {passed}/{total} passed")
     print("="*60)
-    
-    return results
 
 
 if __name__ == "__main__":

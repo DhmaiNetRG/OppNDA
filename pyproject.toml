@@ -1,0 +1,18 @@
+[project]
+name = "oppnda"
+version = "1.0.0"
+description = "ONE Simulator Network Data Analyzer"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_configs.py", "test_framework.py"]
+python_functions = ["test_*"]
+python_classes = ["Test*"]
+# Exclude legacy test files that use custom test runner
+norecursedirs = [".git", "__pycache__", ".venv"]
+filterwarnings = [
+    "ignore::pytest.PytestReturnNotNoneWarning"
+]
