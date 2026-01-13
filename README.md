@@ -8,7 +8,7 @@
 
 ## Features
 
-- 📊 **Batch Processing** - Aggregate raw simulation reports across multiple seeds
+- 📊 **Report Averaging** - Aggregate raw simulation reports across multiple seeds to produce averaged metrics
 - 📈 **Visualization Suite** - Generate 3D surfaces, line plots, violin plots, heatmaps, and pair plots
 - 🤖 **Regression Analysis** - Machine learning models to predict network performance
 - 🌐 **Web Interface** - Modern, responsive GUI for configuration and analysis
@@ -50,18 +50,18 @@ docker run -p 5001:5001 oppnda
 
 ## Usage
 
-### 1. Batch Processing
+### 1. Report Averaging
 
-Process raw ONE Simulator reports to calculate averages across simulation seeds:
+Average raw ONE Simulator reports across multiple simulation seeds:
 
 1. Place your raw report files in a directory (e.g., `reports/`)
-2. Open the web interface and navigate to **Batch Processing**
+2. Open the web interface and navigate to **Report Averaging**
 3. Configure the filename pattern to match your file naming convention
-4. Run the batch processor to generate averaged reports
+4. Run the averager to generate averaged reports
 
 ### 2. Analysis & Visualization
 
-Generate publication-ready plots from processed data:
+Generate publication-ready plots from averaged data:
 
 1. Navigate to **Analysis** tab
 2. Select your report directory and report types
@@ -83,8 +83,8 @@ Configuration files are located in the `config/` directory:
 
 | File | Description |
 |------|-------------|
+| `averager_config.json` | Report averaging parameters |
 | `analysis_config.json` | Visualization and analysis settings |
-| `batch_config.json` | Batch processing parameters |
 | `regression_config.json` | ML model configurations |
 
 See the [`examples/`](examples/) directory for sample configurations.
@@ -98,8 +98,8 @@ oppnda/
 │   ├── api.py           # REST API endpoints
 │   └── routes.py        # Route definitions
 ├── core/                # Core processing modules
+│   ├── averager.py      # Report averaging
 │   ├── analysis.py      # Visualization engine
-│   ├── batch.py         # Batch processing
 │   └── regression.py    # ML regression
 ├── config/              # Configuration files
 ├── GUI/                 # Frontend assets
@@ -118,7 +118,7 @@ OppNDA provides a REST API for programmatic access:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/batch/run` | POST | Execute batch processing |
+| `/api/averager/run` | POST | Execute report averaging |
 | `/api/analysis/run` | POST | Run visualization analysis |
 | `/api/regression/run` | POST | Execute regression analysis |
 | `/api/config/<type>` | GET/POST | Get/set configuration |

@@ -4,6 +4,12 @@ This directory contains example configuration files for OppNDA. Copy these to th
 
 ## Configuration Files
 
+### Report Averaging
+
+| File | Purpose |
+|------|---------|
+| `averager_config.json` | Average raw ONE reports across seeds |
+
 ### Analysis Examples
 
 | File | Description |
@@ -11,23 +17,22 @@ This directory contains example configuration files for OppNDA. Copy these to th
 | `analysis_epidemic.json` | Basic Epidemic router analysis |
 | `analysis_multi_router.json` | Compare multiple routing protocols |
 
-### Processing Examples
+### Regression
 
 | File | Description |
 |------|-------------|
-| `batch_processing.json` | Batch process raw ONE reports |
 | `regression_model.json` | ML regression for performance prediction |
 
 ## Usage
 
 1. Copy the example file to `config/`:
    ```bash
-   cp examples/analysis_epidemic.json config/analysis_config.json
+   cp examples/averager_config.json config/averager_config.json
    ```
 
 2. Modify settings through the web interface or edit the JSON directly
 
-3. Run the corresponding analysis module
+3. Run the corresponding module
 
 ## File Naming Convention
 
@@ -42,4 +47,4 @@ For example:
 sim_EpidemicRouter_1_3600_5_CCNApplicationReport.txt
 ```
 
-Configure the `filename_pattern` in batch config to match your naming scheme.
+Configure the `filename_pattern` in averager config to match your naming scheme.

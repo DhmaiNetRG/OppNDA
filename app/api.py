@@ -15,7 +15,7 @@ api_bp = Blueprint('api', __name__)
 # Configuration file mapping
 CONFIG_FILES = {
     'analysis': 'analysis_config.json',
-    'batch': 'batch_config.json',
+    'averager': 'averager_config.json',
     'regression': 'regression_config.json'
 }
 
@@ -137,10 +137,10 @@ def run_analysis():
         core_dir = current_app.config['CORE_DIR']
         config_dir = current_app.config['CONFIG_DIR']
         
-        # Run batch averaging (cross-platform) - auto-resolves config
-        batch_script = core_dir / 'batch.py'
+        # Run report averaging (cross-platform) - auto-resolves config
+        averager_script = core_dir / 'averager.py'
         subprocess.Popen(
-            [sys.executable, str(batch_script)],
+            [sys.executable, str(averager_script)],
             cwd=str(base_dir)
         )
         
@@ -164,7 +164,7 @@ def run_analysis():
 
 @api_bp.route('/process-data', methods=['POST'])
 def process_data():
-    """Execute post-processing pipeline: batch -> analysis -> regression (optional)."""
+    """Execute post-processing pipeline: averager -> analysis -> regression (optional)."""
     try:
         data = request.get_json() or {}
         enable_ml = data.get('enable_ml', False)
@@ -174,28 +174,28 @@ def process_data():
         
         results = []
         
-        # Step 1: Run batch.py
-        batch_script = core_dir / 'batch.py'
-        if batch_script.exists():
+        # Step 1: Run averager.py
+        averager_script = core_dir / 'averager.py'
+        if averager_script.exists():
             result = subprocess.run(
-                [sys.executable, str(batch_script)],
+                [sys.executable, str(averager_script)],
                 cwd=str(base_dir),
                 capture_output=True,
                 text=True
             )
             results.append({
-                'script': 'batch.py',
+                'script': 'averager.py',
                 'success': result.returncode == 0,
                 'output': result.stdout if result.returncode == 0 else result.stderr
             })
             if result.returncode != 0:
                 return jsonify({
                     'success': False,
-                    'message': 'Batch processing failed',
+                    'message': 'Report averaging failed',
                     'results': results
                 }), 500
         else:
-            results.append({'script': 'batch.py', 'success': False, 'output': 'Script not found'})
+            results.append({'script': 'averager.py', 'success': False, 'output': 'Script not found'})
         
         # Step 2: Run analysis.py
         analysis_script = core_dir / 'analysis.py'
@@ -320,7 +320,7 @@ def save_all_settings():
             results['settings_file'] = str(settings_path)
         
         # 2. Save each config file - MERGE with existing config to preserve non-UI fields
-        for config_name in ['analysis', 'batch', 'regression']:
+        for config_name in ['analysis', 'averager', 'regression']:
             if config_name in data:
                 config_path = config_dir / CONFIG_FILES[config_name]
                 

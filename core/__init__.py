@@ -1,6 +1,6 @@
 """
 OppNDA Core Processing Package
-Contains analysis, batch averaging, and regression modules.
+Contains analysis, report averaging, and regression modules.
 """
 
 from pathlib import Path

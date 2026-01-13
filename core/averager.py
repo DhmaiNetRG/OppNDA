@@ -438,7 +438,7 @@ def main():
     if len(sys.argv) >= 2:
         config_path = Path(sys.argv[1])
     else:
-        config_path = CONFIG_DIR / 'batch_config.json'
+        config_path = CONFIG_DIR / 'averager_config.json'
     
     if not config_path.exists():
         print(f"ERROR: Config file not found: {config_path}")

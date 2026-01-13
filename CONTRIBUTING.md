@@ -161,7 +161,7 @@ When contributing, understand the project layout:
 | Directory | Purpose |
 |-----------|---------|
 | `app/` | Flask application and API endpoints |
-| `core/` | Core processing logic (analysis, batch, regression) |
+| `core/` | Core processing logic (analysis, averager, regression) |
 | `config/` | Configuration JSON files |
 | `GUI/` | Frontend HTML, CSS, JavaScript |
 | `tests/` | Test suite and snapshots |
