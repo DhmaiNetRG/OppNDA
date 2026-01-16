@@ -6,6 +6,7 @@ Handles configuration file management and script execution.
 import os
 import sys
 import json
+import platform
 import subprocess
 from pathlib import Path
 from flask import Blueprint, jsonify, request, current_app
@@ -124,6 +125,216 @@ def update_config_field(config_name):
         return jsonify({'success': True, 'message': f'Updated {field_path}'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/run-one', methods=['POST'])
+def run_one_simulator():
+    """Complete simulation pipeline: Save config → Run ONE → Post-processing.
+    
+    This endpoint handles the entire workflow:
+    1. Saves simulation settings file (.txt)
+    2. Saves post-processing configs (JSON)
+    3. Detects OS and builds appropriate command
+    4. Runs ONE simulator with correct settings file and batch count
+    5. Auto-triggers post-processing when simulation completes
+    """
+    try:
+        data = request.get_json() or {}
+        
+        base_dir = current_app.config['BASE_DIR']
+        config_dir = current_app.config['CONFIG_DIR']
+        core_dir = current_app.config['CORE_DIR']
+        
+        results = {
+            'settings_saved': False,
+            'configs_saved': [],
+            'simulation': None,
+            'post_processing': []
+        }
+        
+        # ============================================================
+        # STEP 1: Save simulation settings file
+        # ============================================================
+        settings_filename = None
+        if 'settings' in data:
+            settings = data['settings']
+            filename = settings.get('filename', 'default_settings.txt')
+            content = settings.get('content', '')
+            
+            # Sanitize filename
+            filename = Path(filename).name
+            if not filename.endswith('.txt'):
+                filename += '.txt'
+            
+            settings_path = base_dir / filename
+            with open(settings_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            settings_filename = filename
+            results['settings_saved'] = True
+            results['settings_file'] = str(settings_path)
+        
+        # ============================================================
+        # STEP 2: Save post-processing configs
+        # ============================================================
+        for config_name in ['analysis', 'averager', 'regression']:
+            if config_name in data:
+                config_path = config_dir / CONFIG_FILES[config_name]
+                
+                # Load existing config for merge
+                existing_config = {}
+                if config_path.exists():
+                    try:
+                        with open(config_path, 'r', encoding='utf-8') as f:
+                            existing_config = json.load(f)
+                    except json.JSONDecodeError:
+                        existing_config = {}
+                    
+                    # Create backup
+                    backup_path = config_path.with_suffix('.json.backup')
+                    backup_path.write_text(config_path.read_text(encoding='utf-8'), encoding='utf-8')
+                
+                # Deep merge
+                merged_config = deep_merge(existing_config, data[config_name])
+                
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    json.dump(merged_config, f, indent=2)
+                
+                results['configs_saved'].append(config_name)
+        
+        # ============================================================
+        # STEP 3: Build ONE simulator command
+        # ============================================================
+        batch_count = data.get('batch_count', 0)
+        compile_first = data.get('compile', False)
+        enable_ml = data.get('enable_ml', False)
+        
+        # Detect OS
+        is_windows = platform.system() == 'Windows'
+        
+        if is_windows:
+            one_cmd = 'one.bat'
+            compile_cmd = 'compile.bat'
+            shell_needed = True
+        else:
+            one_cmd = './one.sh'
+            compile_cmd = './compile.sh'
+            shell_needed = True
+        
+        # Build command with settings file
+        command_parts = []
+        
+        # Add compile step if requested
+        if compile_first:
+            command_parts.append(compile_cmd)
+            command_parts.append('&&')
+        
+        # Add ONE command
+        command_parts.append(one_cmd)
+        
+        # Add batch mode if batch_count > 0
+        if batch_count and batch_count > 0:
+            command_parts.append('-b')
+            command_parts.append(str(batch_count))
+        
+        # Add settings file
+        if settings_filename:
+            command_parts.append(settings_filename)
+        
+        full_command = ' '.join(command_parts)
+        
+        # ============================================================
+        # STEP 4: Run ONE simulator
+        # ============================================================
+        # Check if ONE exists
+        one_path = base_dir / (one_cmd.replace('./', ''))
+        if not one_path.exists():
+            return jsonify({
+                'success': False,
+                'message': f'ONE simulator not found: {one_path}',
+                'results': results,
+                'command': full_command
+            }), 404
+        
+        # Run ONE synchronously and wait for completion
+        sim_result = subprocess.run(
+            full_command,
+            shell=shell_needed,
+            cwd=str(base_dir),
+            capture_output=True,
+            text=True
+        )
+        
+        results['simulation'] = {
+            'command': full_command,
+            'success': sim_result.returncode == 0,
+            'output': sim_result.stdout if sim_result.returncode == 0 else sim_result.stderr
+        }
+        
+        if sim_result.returncode != 0:
+            return jsonify({
+                'success': False,
+                'message': 'ONE simulation failed',
+                'results': results
+            }), 500
+        
+        # ============================================================
+        # STEP 5: Auto-run post-processing pipeline
+        # ============================================================
+        # Run averager.py
+        averager_script = core_dir / 'averager.py'
+        if averager_script.exists():
+            result = subprocess.run(
+                [sys.executable, str(averager_script)],
+                cwd=str(base_dir),
+                capture_output=True,
+                text=True
+            )
+            results['post_processing'].append({
+                'script': 'averager.py',
+                'success': result.returncode == 0,
+                'output': result.stdout if result.returncode == 0 else result.stderr
+            })
+        
+        # Run analysis.py
+        analysis_script = core_dir / 'analysis.py'
+        if analysis_script.exists():
+            result = subprocess.run(
+                [sys.executable, str(analysis_script)],
+                cwd=str(base_dir),
+                capture_output=True,
+                text=True
+            )
+            results['post_processing'].append({
+                'script': 'analysis.py',
+                'success': result.returncode == 0,
+                'output': result.stdout if result.returncode == 0 else result.stderr
+            })
+        
+        # Run regression.py if ML enabled
+        if enable_ml:
+            regression_script = core_dir / 'regression.py'
+            if regression_script.exists():
+                result = subprocess.run(
+                    [sys.executable, str(regression_script)],
+                    cwd=str(base_dir),
+                    capture_output=True,
+                    text=True
+                )
+                results['post_processing'].append({
+                    'script': 'regression.py',
+                    'success': result.returncode == 0,
+                    'output': result.stdout if result.returncode == 0 else result.stderr
+                })
+        
+        return jsonify({
+            'success': True,
+            'message': 'Complete pipeline executed successfully',
+            'results': results
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
 
 
 @api_bp.route('/run', methods=['POST'])

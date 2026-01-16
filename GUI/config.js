@@ -1600,40 +1600,371 @@ GUI.EventLogPanel.nrofEvents = 100
 function runONE() {
     const batchMode = document.getElementById("batchMode").checked;
     const compile = document.getElementById("compile").checked;
-    //const batchNumber = document.getElementById("batchNumber").value.trim();
+    const enableML = document.getElementById("enableMachineLearning")?.checked || false;
 
+    // ============================================================
+    // STEP 1: Collect simulation settings (same as saveAllSettings)
+    // ============================================================
+    let content = '';
 
+    // Scenario Tab
+    let name = document.getElementById("scenarioName").value;
+    var currentDate = new Date();
+    var year = currentDate.getFullYear();
+    var month = String(currentDate.getMonth() + 1).padStart(2, '0');
+    var day = String(currentDate.getDate()).padStart(2, '0');
+    var hours = String(currentDate.getHours()).padStart(2, '0');
+    var minutes = String(currentDate.getMinutes()).padStart(2, '0');
+    var seconds = String(currentDate.getSeconds()).padStart(2, '0');
+    var formattedDateTime = `${year}_${month}_${day}_${hours}_${minutes}_${seconds}`;
 
-    // Determine the operating system
-    const isWindows = navigator.userAgentData?.platform?.includes("Win") || navigator.userAgent.includes("Windows");
-    let command = isWindows ? "one.bat" : "./one.sh";
+    if (document.getElementById("nameAdd").checked) {
+        name += '_' + formattedDateTime;
+    }
+    content += `
+## Scenario settings
+Scenario.name = ${name}_%%Group.router%%_%%MovementModel.rngSeed%%_%%Group.msgTtl%%
 
-    // Handle batch mode
-    if (batchMode) {
-        command += ` - b ${batchNum} `;
+Scenario.simulateConnections = ${document.getElementById("simulateConnections").checked ? "true" : "false"}
+Scenario.updateInterval = ${document.getElementById("updateInterval").value}
+Scenario.endTime = ${document.getElementById("endTime").value}
+    `;
+
+    // Interface Table Data
+    content += `
+## Interface List Settings:
+`;
+    let TTLLen = 1;
+    const interfaceTableRows = document.getElementById("interfaceList").getElementsByTagName("tbody")[0].rows;
+    for (let row of interfaceTableRows) {
+        const interfaceName = row.cells[0].innerText;
+        const interfaceType = row.cells[1].innerText;
+        const transmitSpeed = row.cells[2].innerText;
+        const transmitRange = row.cells[3].innerText;
+
+        content += `
+#${interfaceName}.name = ${interfaceName}
+${interfaceName}.type = ${interfaceType}
+${interfaceName}.transmitSpeed = ${transmitSpeed}
+${interfaceName}.transmitRange = ${transmitRange}
+        `;
     }
 
-    // Handle compile option
-    if (compile) {
-        const compileCommand = isWindows ? "compile.bat" : "./compile.sh";
-        command = `${compileCommand} && ${command} `;
+    // Common group settings
+    const CommoNmovementModel = document.getElementById("commonMovementModel").value;
+    const tagifyInput = document.getElementById("commonRouter");
+    const tagifyValue = JSON.parse(tagifyInput.value);
+    const CommoNrouter = `[${tagifyValue.map(tag => tag.value).join("; ")}]`;
+    const routerCount = tagifyValue.length;
+    const CommoNbufferSize = document.getElementById("commonBufferSize").value;
+    const commonRouteFile = document.getElementById("commonRouteFile");
+    const CommoNwaitTime = document.getElementById("commonWaitTime").value;
+
+    // Handle multi-interface selection
+    let interfaces = ['btInterface'];
+    const interfaceInput = document.getElementById("commonInterface");
+    if (interfaceInput && interfaceInput.value) {
+        try {
+            const interfaceTagifyValue = JSON.parse(interfaceInput.value);
+            if (Array.isArray(interfaceTagifyValue) && interfaceTagifyValue.length > 0) {
+                interfaces = interfaceTagifyValue.map(tag => tag.value);
+            }
+        } catch (e) {
+            interfaces = [interfaceInput.value];
+        }
     }
 
-    // Send the command to the backend
-    fetch("/run-one", {
+    const CommoNspeed = document.getElementById("commonSpeed").value;
+    let CommoNmsgTtl = document.getElementById("commonTtl").value;
+    const CommoNnumHosts = document.getElementById("commonNumberOfHost").value;
+
+    if (CommoNmsgTtl.includes(";")) {
+        CommoNmsgTtl = `[${CommoNmsgTtl}]`;
+    }
+    TTLLen = ((CommoNmsgTtl.match(/;/g) || []).length) + 1;
+
+    content += `
+Scenario.nrofHostGroups = ${document.getElementById("groupList").getElementsByTagName("tbody")[0].rows.length}
+        `;
+    content += `
+## Common settings for all groups:
+Group.movementModel = ${CommoNmovementModel}
+Group.router = ${CommoNrouter}
+Group.bufferSize = ${CommoNbufferSize}`;
+    if (commonRouteFile.value != '') {
+        content += `
+Group.routeFile = ${commonRouteFile.value}
+   `
+    }
+
+    content += `
+Group.waitTime =${CommoNwaitTime}
+# Interface settings
+Group.nrofInterfaces = ${interfaces.length}`;
+    interfaces.forEach((iface, idx) => {
+        content += `
+Group.interface${idx + 1} = ${iface}`;
+    });
+
+    content += `
+Group.speed = ${CommoNspeed}
+# Message TTL of 300 minutes (5 hours)
+Group.msgTtl = ${CommoNmsgTtl}
+Group.nrofHosts = ${CommoNnumHosts}
+`;
+
+    // Energy Model Settings
+    const energyEnabled = document.getElementById('enableEnergyModel')?.checked;
+    if (energyEnabled) {
+        const initialEnergy = document.getElementById('initialEnergy')?.value || '100';
+        const scanEnergy = document.getElementById('scanEnergy')?.value || '0.1';
+        const transmitEnergy = document.getElementById('transmitEnergy')?.value || '0.001';
+        const baseEnergy = document.getElementById('baseEnergy')?.value || '0.01';
+        content += `
+## Energy model settings
+Group.initialEnergy = ${initialEnergy}
+Group.scanEnergy = ${scanEnergy}
+Group.transmitEnergy = ${transmitEnergy}
+Group.baseEnergy = ${baseEnergy}
+`;
+    }
+
+    // POI Settings
+    const poiEnabled = document.getElementById('poiEnabled')?.checked;
+    if (poiEnabled) {
+        const poiString = document.getElementById('poiPreview')?.value;
+        if (poiString && poiString.trim()) {
+            content += `
+## Points of Interest
+Group.pois = ${poiString}
+`;
+        }
+    }
+
+    // Group Table Data
+    const groupTableRows = document.getElementById("groupList").getElementsByTagName("tbody")[0].rows;
+    let serial = 1;
+    for (let row of groupTableRows) {
+        const groupID = row.cells[0].innerText;
+        const numHosts = row.cells[1].innerText;
+        const movementModel = row.cells[2].innerText;
+        const route = row.cells[3].innerText;
+        const routeType = row.cells[4].innerText;
+        const router = row.cells[5].innerText;
+        const activeTimes = row.cells[6].innerText;
+        const messageTTL = row.cells[7].innerText;
+
+        content += `
+Group${serial}.groupID = ${groupID}
+Group${serial}.numHosts = ${numHosts}
+Group${serial}.movementModel = ${movementModel}
+`
+        if (route != '') {
+            content += `
+Group${serial}.routeFile = ${route}
+`
+        }
+
+        content += `
+Group${serial}.router = ${router}
+`
+        if (routeType) {
+            content += `
+Group${serial}.routeType = ${routeType}
+`
+        }
+        content += `
+Group${serial}.messageTTL = ${messageTTL}
+`
+        if (activeTimes != '0') {
+            content += `
+ Group${serial}.activeTimes = ${activeTimes}
+ 
+ `;
+        }
+        serial++;
+    }
+
+    // Event settings
+    content += `
+## Event settings
+Events.nrof = ${events.length}`
+    let count = 1;
+    for (let row of events) {
+        content += `
+Events${count}.class = ${row['eventClass']}
+Events${count}.interval =${row['interval']}
+Events${count}.size =${row['size']}
+Events${count}.hosts = ${row['hosts']}
+Events${count}.prefix = ${row['prefix']}
+    `;
+        count++;
+    }
+
+    // RNG Seed
+    let rngSeed = document.getElementById("rngSeed").value || "1";
+    if (rngSeed.includes(";")) {
+        rngSeed = `[${rngSeed}]`;
+    }
+    let rngSeedLen = ((rngSeed.match(/;/g) || []).length) + 1;
+
+    // Calculate batch number
+    batchNum = routerCount * rngSeedLen * TTLLen;
+
+    content += `
+## Movement model settings
+# seed for movement models' pseudo random number generator (default = 0)
+MovementModel.rngSeed = ${rngSeed}
+`;
+
+    // World Size and Warmup Time
+    const worldSize = document.getElementById("worldSize").value || "4500, 3400";
+    const warmupTime = document.getElementById("warmup").value || "1000";
+    content += `
+# World's size for Movement Models without implicit size (width, height; meters)
+MovementModel.worldSize = ${worldSize}
+# How long time to move hosts in the world before real simulation
+MovementModel.warmup = ${warmupTime}
+`;
+
+    // Map Files
+    const fileList = document.getElementById("fileList").children;
+    content += `
+## Map based movement -movement model specific settings
+MapBasedMovement.nrofMapFiles = ${fileList.length}
+`;
+    if (fileList.length > 0) {
+        let mapFileIndex = 1;
+        for (let fileItem of fileList) {
+            const fileName = fileItem.textContent.trim();
+            content += `MapBasedMovement.mapFile${mapFileIndex} = data/${fileName}\n`;
+            mapFileIndex++;
+        }
+    } else {
+        content += "# No map files selected\n";
+    }
+
+    // Reports
+    content += `
+
+# how many reports to load
+Report.nrofReports = ${reports.length}
+# length of the warm up period (simulated seconds)
+Report.warmup = ${reportWarmup}
+# default directory of reports (can be overridden per Report with output setting)
+Report.reportDir = ${reportDirectory}
+`;
+    reports.forEach((reportClass, index) => {
+        content += `Report.report${index + 1} = ${reportClass}\n`;
+    });
+
+    // Router & Optimization Tab
+    const prophetRouterTimeUnit = document.getElementById('prophetRouterTimeUnit').value;
+    const sprayAndWaitCopies = document.getElementById('sprayAndWaitCopies').value;
+    const sprayAndWaitBinaryMode = document.getElementById('sprayAndWaitBinaryMode').checked;
+    const optimizationCellSizeMult = document.getElementById('optimizationCellSizeMult').value;
+    const optimizationRandomizeUpdateOrder = document.getElementById('optimizationRandomizeUpdateOrder').checked;
+
+    content += `
+## Default settings for some routers settings
+ProphetRouter.secondsInTimeUnit = ${prophetRouterTimeUnit}
+SprayAndWaitRouter.nrofCopies = ${sprayAndWaitCopies}
+SprayAndWaitRouter.binaryMode = ${sprayAndWaitBinaryMode}
+
+## Optimization settings -- these affect the speed of the simulation
+## see World class for details.
+Optimization.cellSizeMult = ${optimizationCellSizeMult}
+Optimization.randomizeUpdateOrder = ${optimizationRandomizeUpdateOrder}
+        `;
+
+    // GUI Tab
+    const underlayImageOffset = document.getElementById('underlayImageOffset').value;
+    const underlayImageScale = document.getElementById('underlayImageScale').value;
+    const underlayImageRotate = document.getElementById('underlayImageRotate').value;
+    const eventLogPanelNrofEvents = document.getElementById('eventLogPanelNrofEvents').value;
+    const fileInput = document.getElementById('underlayImageFileName');
+    let file = 'helsinki_underlay.png';
+    if (fileInput.value) {
+        file = fileInput.files[0].name;
+    }
+
+    content += `
+## GUI settings
+
+# GUI underlay image settings
+GUI.UnderlayImage.fileName = ${'data/' + file}
+# Image offset in pixels (x, y)
+GUI.UnderlayImage.offset = ${underlayImageOffset}
+# Scaling factor for the image
+GUI.UnderlayImage.scale = ${underlayImageScale}
+# Image rotation (radians)
+GUI.UnderlayImage.rotate = ${underlayImageRotate}
+
+# how many events to show in the log panel (default = 30)
+GUI.EventLogPanel.nrofEvents = ${eventLogPanelNrofEvents}
+# Regular Expression log filter (see Pattern-class from the Java API for RE-matching details)
+#GUI.EventLogPanel.REfilter = .*p[1-9]<->p[1-9]$
+    `;
+
+    // ============================================================
+    // STEP 2: Build filename
+    // ============================================================
+    let settingsFilename = name + '_settings.txt';
+
+    // ============================================================
+    // STEP 3: Build payload with all data
+    // ============================================================
+    const payload = {
+        settings: {
+            filename: settingsFilename,
+            content: content
+        },
+        batch_count: batchMode ? batchNum : 0,
+        compile: compile,
+        enable_ml: enableML,
+        // Post-processing configs
+        analysis: collectAnalysisConfig(),
+        averager: collectBatchConfig(),
+        regression: collectRegressionConfig()
+    };
+
+    // ============================================================
+    // STEP 4: Send to backend /api/run-one endpoint
+    // ============================================================
+    // Show user that pipeline is starting
+    alert(`Starting complete pipeline:\n• Saving config: ${settingsFilename}\n• Batch runs: ${batchMode ? batchNum : 'GUI mode'}\n• Post-processing: Will run automatically after simulation`);
+
+    fetch("/api/run-one", {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
         },
-        body: JSON.stringify({ command }),
+        body: JSON.stringify(payload),
     })
         .then((response) => response.json())
         .then((data) => {
-            alert(data.message);
+            if (data.success) {
+                let resultMsg = 'Pipeline completed successfully!\n\n';
+                resultMsg += `✓ Settings saved: ${data.results.settings_file || settingsFilename}\n`;
+                resultMsg += `✓ Configs saved: ${data.results.configs_saved?.join(', ') || 'None'}\n`;
+                if (data.results.simulation) {
+                    resultMsg += `✓ Simulation: ${data.results.simulation.success ? 'Completed' : 'Failed'}\n`;
+                }
+                if (data.results.post_processing?.length > 0) {
+                    resultMsg += `✓ Post-processing:\n`;
+                    data.results.post_processing.forEach(pp => {
+                        resultMsg += `  - ${pp.script}: ${pp.success ? 'Success' : 'Failed'}\n`;
+                    });
+                }
+                alert(resultMsg);
+            } else {
+                alert(`Pipeline error: ${data.message}\n\nCheck console for details.`);
+                console.error('Pipeline error:', data);
+            }
         })
         .catch((error) => {
             console.error("Error:", error);
-            alert("An error occurred while running ONE.");
+            alert("An error occurred while running the pipeline. Check console for details.");
         });
 }
 
