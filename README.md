@@ -5,20 +5,22 @@
 ![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
 ![Flask](https://img.shields.io/badge/Flask-2.0+-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
-![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)
+[![CI](https://github.com/yourusername/oppnda/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/oppnda/actions)
 
 ## Features
 
 - 🎛️ **Scenario Configuration** — Generate ONE Simulator configuration files through an intuitive web interface
 - 📥 **Config Import** — Import existing ONE .txt config files directly into the GUI
+- ▶️ **Run ONE Pipeline** — Complete simulation workflow: save config → run ONE → auto post-processing
 - 📊 **Report Averaging** — Aggregate raw simulation reports with auto-grouping by router/TTL/buffer
 - 📈 **Visualization Suite** — Generate 3D surfaces, line plots, violin plots, heatmaps, and pair plots
 - 🤖 **Multi-Target ML** — Train regression models on multiple target variables simultaneously
-- ⚙️ **Flexible Configuration** — JSON-based settings for all analysis parameters
+- ⚙️ **Flexible Configuration** — JSON-based settings with automatic backup and deep-merge preservation
 - 🧠 **Dynamic Memory Management** — Intelligent worker optimization to prevent swap-thrashing
 - 🚀 **Quick Start Modal** — Guided onboarding with example scenarios (Urban/Campus)
 - 📋 **Live Batch Preview** — Real-time batch count calculation as you configure parameters
 - 💾 **Auto-Save** — Automatic config persistence when switching tabs
+- 🖥️ **Cross-Platform** — Full support for Windows, Linux, and macOS
 
 ## Quick Start
 
@@ -58,13 +60,22 @@ python run.py
 
 ### Docker
 
+```bash
+# Build and run with Docker Compose
+docker-compose up --build
+
+# Or build manually
+docker build -t oppnda .
+docker run -p 5000:5000 oppnda
+```
+
 ## Usage
 
 ### Scenario Configuration
 
 Create ONE Simulator configuration files using the web GUI:
 
-1. Open `http://127.0.0.1:5001` in your browser
+1. Open `http://localhost:5000/settings` in your browser
 2. Configure scenario settings (name, duration, world size, etc.)
 3. Add interfaces, groups, events, and reports
 4. Export the configuration file
@@ -123,8 +134,10 @@ oppnda/
 │   └── resource_manager.py  # Dynamic memory management
 ├── config/              # Configuration files
 ├── GUI/                 # Frontend assets
-│   ├── settings.html    # Main interface
-│   ├── settings.css     # Styles
+│   ├── settings.html    # Main settings interface
+│   ├── settings.css     # Settings styles
+│   ├── nda.html         # NDA generator interface
+│   ├── nda.css          # NDA generator styles
 │   └── config.js        # Frontend logic
 ├── examples/            # Example configurations
 ├── tests/               # Test suite
@@ -147,10 +160,26 @@ Tests include:
 - Module import tests  
 - Flask app integration tests
 - Resource manager tests
+- GUI interactive tests
+
+## API Reference
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/run-one` | POST | Complete pipeline: save config → run ONE → post-processing |
+| `/api/config/<name>` | GET/POST | Get or update configuration files |
+| `/api/save-settings` | POST | Save simulation settings (.txt) |
+| `/api/save-all` | POST | Save all configs with deep-merge preservation |
+| `/api/run-averager` | POST | Run report averager only |
+| `/api/run-analysis` | POST | Run visualization analysis only |
+| `/api/run-regression` | POST | Run ML regression only |
+| `/api/default-settings` | GET | Get default ONE simulator settings |
+| `/api/default-settings/generate` | POST | Generate settings file with custom overrides |
 
 ## Documentation
 
 - **[ONE_PARAMETERS.md](ONE_PARAMETERS.md)** — Complete ONE Simulator parameter reference
+- **[tests/README.md](tests/README.md)** — Test suite documentation
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — Contribution guidelines
 - **[examples/](examples/)** — Example configuration files
 

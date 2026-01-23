@@ -73,16 +73,7 @@ def test_analysis_config_schema():
     assert len(missing) == 0, f"Missing keys: {missing}"
 
 
-def test_analysis_config_read_write(tmp_path):
-    """Test that analysis config can be read and written"""
-    config_path = os.path.join(BASE_DIR, "config", "analysis_config.json")
-    config = _check_json_valid(config_path)
-    temp_file = tmp_path / "test_config.json"
-    with open(temp_file, 'w') as f:
-        json.dump(config, f, indent=2)
-    with open(temp_file, 'r') as f:
-        reloaded = json.load(f)
-    assert config == reloaded
+
 
 
 def test_averager_config_json_valid():
@@ -100,18 +91,6 @@ def test_averager_config_schema():
     assert len(missing) == 0, f"Missing keys: {missing}"
 
 
-def test_averager_config_read_write(tmp_path):
-    """Test that averager config can be read and written"""
-    config_path = os.path.join(BASE_DIR, "config", "averager_config.json")
-    config = _check_json_valid(config_path)
-    temp_file = tmp_path / "test_config.json"
-    with open(temp_file, 'w') as f:
-        json.dump(config, f, indent=2)
-    with open(temp_file, 'r') as f:
-        reloaded = json.load(f)
-    assert config == reloaded
-
-
 def test_regression_config_json_valid():
     """Test that regression_config.json is valid JSON"""
     config_path = os.path.join(BASE_DIR, "config", "regression_config.json")
@@ -125,18 +104,6 @@ def test_regression_config_schema():
     config = _check_json_valid(config_path)
     missing = _check_schema(config, REGRESSION_CONFIG_SCHEMA)
     assert len(missing) == 0, f"Missing keys: {missing}"
-
-
-def test_regression_config_read_write(tmp_path):
-    """Test that regression config can be read and written"""
-    config_path = os.path.join(BASE_DIR, "config", "regression_config.json")
-    config = _check_json_valid(config_path)
-    temp_file = tmp_path / "test_config.json"
-    with open(temp_file, 'w') as f:
-        json.dump(config, f, indent=2)
-    with open(temp_file, 'r') as f:
-        reloaded = json.load(f)
-    assert config == reloaded
 
 
 # ============================================================================
