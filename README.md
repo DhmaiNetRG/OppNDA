@@ -119,6 +119,33 @@ Configuration files in `config/`:
 
 See [`examples/`](examples/) for sample configurations.
 
+## Performance Optimization
+
+OppNDA implements **dynamic memory management** to efficiently process large datasets. The system automatically calculates optimal parallelism based on available RAM:
+
+```python
+from core.resource_manager import get_optimal_workers
+
+# Automatic worker calculation (default)
+workers = get_optimal_workers()  # Uses 75% RAM threshold
+
+# With file-based estimation
+workers = get_optimal_workers(file_paths=['report1.txt', 'report2.txt'])
+
+# Disable safety for maximum performance (use with caution)
+workers = get_optimal_workers(safety_enabled=False)
+```
+
+### Configuration
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `eta` (η) | 0.75 | Maximum RAM utilization threshold |
+| `gamma` (γ) | 3.0 | DataFrame expansion factor |
+| `safety_enabled` | True | Enable/disable memory management |
+
+> 📖 **See [PERFORMANCE.md](PERFORMANCE.md) for mathematical models, API reference, benchmarks, and advanced configuration.**
+
 ## Project Structure
 
 ```
@@ -179,6 +206,7 @@ Tests include:
 ## Documentation
 
 - **[ONE_PARAMETERS.md](ONE_PARAMETERS.md)** — Complete ONE Simulator parameter reference
+- **[PERFORMANCE.md](PERFORMANCE.md)** — Memory optimization and performance tuning
 - **[tests/README.md](tests/README.md)** — Test suite documentation
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — Contribution guidelines
 - **[examples/](examples/)** — Example configuration files
