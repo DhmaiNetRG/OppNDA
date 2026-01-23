@@ -31,22 +31,20 @@
   "average_groups": [
     {
       "group_by": [
-        "report_type",
         "router",
         "ttl"
       ],
       "min_files": 2,
-      "name": "ttl_avg",
+      "name": "ttl_average",
       "output_template": "{report_type}_{router}_{ttl}_ttl_average.txt"
     },
     {
       "group_by": [
-        "report_type",
         "router",
         "buffer"
       ],
       "min_files": 2,
-      "name": "buffer_avg",
+      "name": "buffer_average",
       "output_template": "{report_type}_{router}_{buffer}_buffer_average.txt"
     }
   ],

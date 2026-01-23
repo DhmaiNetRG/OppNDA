@@ -149,6 +149,6 @@
   },
   "report_extension": ".txt",
   "report_types": [
-    "CCNApplicationReport"
+    "MessageStatsReport"
   ]
 }

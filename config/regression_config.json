@@ -5,7 +5,9 @@
     "active_files": []
   },
   "features": {
-    "target": "delivery_prob",
+    "targets": [
+      "delivery_prob"
+    ],
     "selection_mode": "manual",
     "predictors": [],
     "exclude": [
@@ -18,7 +20,8 @@
       "degree": 2,
       "interaction_only": true,
       "include_bias": false
-    }
+    },
+    "target": "[{\"value\":\"delivery_prob\"}]"
   },
   "model_settings": {
     "split_settings": {
@@ -59,5 +62,38 @@
   },
   "output": {
     "directory": "regression_results"
+  },
+  "plot_settings": {
+    "figure": {
+      "size": [
+        15,
+        5
+      ],
+      "dpi": 100
+    },
+    "styles": {
+      "colors": {
+        "residual_scatter": "#1f77b4",
+        "actual_predicted": "#2ecc71",
+        "residual_hist": "#3498db",
+        "line": "#e74c3c",
+        "edge": "white"
+      },
+      "scatter": {
+        "s": 50,
+        "alpha": 0.6
+      },
+      "grid": {
+        "style": "--",
+        "width": 0.5,
+        "alpha": 0.7
+      },
+      "fonts": {
+        "title": 14,
+        "axis_label": 12,
+        "tick_label": 10,
+        "legend": 10
+      }
+    }
   }
 }

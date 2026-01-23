@@ -1288,14 +1288,6 @@
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="batchFileContains"
-                            data-tooltip="Optional filter - only process files whose name contains this text">
-                            Filter by Name:
-                        </label>
-                        <input type="text" id="batchFileContains" name="file_contains"
-                            placeholder="e.g., MessageStatsReport">
-                    </div>
-                    <div class="form-group">
                         <label for="batchPrecision" data-tooltip="Number of decimal places in averaged output values">
                             Output Precision:
                         </label>
@@ -1309,8 +1301,8 @@
 
                 <div class="form-group">
                     <label for="analysisReportTypes"
-                        data-tooltip="Types of reports to analyze (e.g., MessageStatsReport, CCNApplicationReport)">
-                        Report Types:
+                        data-tooltip="Report types to analyze - also used to filter files by name (only files containing the report type name will be processed)">
+                        Report Types (Filename Filter):
                     </label>
                     <input id="analysisReportTypes" name="report_types" placeholder="Select or type report types">
                 </div>
@@ -1338,6 +1330,30 @@
                     <input id="enabledPlotsTagify" name="enabled_plots" placeholder="Select plots">
                 </div>
 
+                <!-- Average Groups - Standard Settings -->
+                <h4 style="margin: 20px 0 10px; color: #475569;"><i class="fas fa-layer-group"
+                        style="color: #8b5cf6;"></i> Average Groups</h4>
+                <p style="color: #64748b; font-size: 13px; margin-bottom: 10px;">
+                    How to group files for averaging (by router, TTL, etc.)
+                </p>
+                <table class="dynamic-table" id="batchAverageGroupsTable">
+                    <thead>
+                        <tr>
+                            <th>Group Name</th>
+                            <th>Group By</th>
+                            <th>Min Files</th>
+                            <th>Output Template</th>
+                            <th style="width: 60px;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="batchAverageGroupsBody">
+                        <!-- Default rows will be added by JS -->
+                    </tbody>
+                </table>
+                <button type="button" class="add-button" style="margin-top: 10px;" onclick="addBatchAverageGroup()">
+                    <i class="fas fa-plus"></i> Add Average Group
+                </button>
+
                 <!-- Advanced Settings -->
                 <details class="advanced-settings">
                     <summary><i class="fas fa-cog"></i> Advanced Settings</summary>
@@ -1363,85 +1379,15 @@
                             <i class="fas fa-plus"></i> Add Component
                         </button>
 
-                        <h4 style="margin: 20px 0 10px;">Average Groups</h4>
-                        <p style="color: #64748b; font-size: 13px; margin-bottom: 10px;">
-                            How to group files for averaging (by router, TTL, etc.)
-                        </p>
-                        <table class="dynamic-table" id="batchAverageGroupsTable">
-                            <thead>
-                                <tr>
-                                    <th>Group Name</th>
-                                    <th>Group By</th>
-                                    <th>Min Files</th>
-                                    <th>Output Template</th>
-                                    <th style="width: 60px;">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="batchAverageGroupsBody">
-                                <!-- Dynamic rows -->
-                            </tbody>
-                        </table>
-                        <button type="button" class="add-button" style="margin-top: 10px;"
-                            onclick="addBatchAverageGroup()">
-                            <i class="fas fa-plus"></i> Add Average Group
-                        </button>
+                        <!-- Plot thresholds now hidden with defaults -->
+                        <input type="hidden" id="analysisMinValuesLine" name="min_values_line" value="2">
+                        <input type="hidden" id="analysisMinValuesSurface" name="min_values_surface" value="3">
+                        <input type="hidden" id="analysisMinFilesHeatmap" name="min_files_heatmap" value="2">
 
-                        <h4 style="margin: 20px 0 10px;">Plot Thresholds</h4>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="analysisMinValuesLine"
-                                    data-tooltip="Minimum data points required to generate a line plot">
-                                    Min Values (Line):
-                                </label>
-                                <input type="number" id="analysisMinValuesLine" name="min_values_line" value="2"
-                                    min="1">
-                            </div>
-                            <div class="form-group">
-                                <label for="analysisMinValuesSurface"
-                                    data-tooltip="Minimum data points required for 3D surface plot">
-                                    Min Values (Surface):
-                                </label>
-                                <input type="number" id="analysisMinValuesSurface" name="min_values_surface" value="3"
-                                    min="1">
-                            </div>
-                            <div class="form-group">
-                                <label for="analysisMinFilesHeatmap"
-                                    data-tooltip="Minimum files required to generate a heatmap">
-                                    Min Files (Heatmap):
-                                </label>
-                                <input type="number" id="analysisMinFilesHeatmap" name="min_files_heatmap" value="2"
-                                    min="1">
-                            </div>
-                        </div>
-
-                        <h4 style="margin: 20px 0 10px;">Filename Position Mapping</h4>
-                        <p style="color: #64748b; font-size: 13px; margin-bottom: 10px;">
-                            Position of each component in averaged filenames (for analysis)
-                        </p>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="analysisReportTypePos"
-                                    data-tooltip="0-based position of report type in filename">
-                                    Report Type Pos:
-                                </label>
-                                <input type="number" id="analysisReportTypePos" name="report_type_pos" value="0"
-                                    min="0">
-                            </div>
-                            <div class="form-group">
-                                <label for="analysisRouterPos"
-                                    data-tooltip="0-based position of router name in filename">
-                                    Router Pos:
-                                </label>
-                                <input type="number" id="analysisRouterPos" name="router_pos" value="1" min="0">
-                            </div>
-                            <div class="form-group">
-                                <label for="analysisGroupingTypePos"
-                                    data-tooltip="Position of grouping type (TTL/Buffer). Use -1 if not present.">
-                                    Grouping Type Pos:
-                                </label>
-                                <input type="number" id="analysisGroupingTypePos" name="grouping_type_pos" value="-1">
-                            </div>
-                        </div>
+                        <!-- Filename positions are now auto-detected (hidden) -->
+                        <input type="hidden" id="analysisReportTypePos" name="report_type_pos" value="0">
+                        <input type="hidden" id="analysisRouterPos" name="router_pos" value="1">
+                        <input type="hidden" id="analysisGroupingTypePos" name="grouping_type_pos" value="-1">
                         <input type="hidden" id="analysisFilenameDelimiter" value="_">
                         <input type="hidden" id="analysisDataSeparator" value=":">
                         <input type="hidden" id="analysisReportExtension" value=".txt">

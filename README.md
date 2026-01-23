@@ -10,41 +10,53 @@
 ## Features
 
 - 🎛️ **Scenario Configuration** — Generate ONE Simulator configuration files through an intuitive web interface
-- 📊 **Report Averaging** — Aggregate raw simulation reports across multiple seeds
+- 📥 **Config Import** — Import existing ONE .txt config files directly into the GUI
+- 📊 **Report Averaging** — Aggregate raw simulation reports with auto-grouping by router/TTL/buffer
 - 📈 **Visualization Suite** — Generate 3D surfaces, line plots, violin plots, heatmaps, and pair plots
-- 🤖 **Regression Analysis** — Machine learning models to predict network performance
+- 🤖 **Multi-Target ML** — Train regression models on multiple target variables simultaneously
 - ⚙️ **Flexible Configuration** — JSON-based settings for all analysis parameters
 - 🧠 **Dynamic Memory Management** — Intelligent worker optimization to prevent swap-thrashing
 - 🚀 **Quick Start Modal** — Guided onboarding with example scenarios (Urban/Campus)
 - 📋 **Live Batch Preview** — Real-time batch count calculation as you configure parameters
 - 💾 **Auto-Save** — Automatic config persistence when switching tabs
 
-## Installation
+## Quick Start
+
+### Windows
+```batch
+# First time setup
+setup.bat
+
+# Launch application
+start.bat
+```
+
+### Linux/macOS
+```bash
+# First time setup
+chmod +x setup.sh && ./setup.sh
+
+# Launch application
+./start.sh
+```
+
+The web interface will be available at `http://localhost:5000/settings`
+
+### Manual Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/oppnda.git
-cd oppnda
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # or venv\Scripts\activate on Windows
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Run the application
+# Run application
 python run.py
 ```
 
-The web interface will be available at `http://127.0.0.1:5001`
-
 ### Docker
-
-```bash
-# Using Docker Compose
-docker-compose up -d
-
-# Or build manually
-docker build -t oppnda .
-docker run -p 5001:5001 oppnda
-```
 
 ## Usage
 

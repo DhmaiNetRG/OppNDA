@@ -1408,7 +1408,7 @@ function collectAnalysisConfig() {
         file_patterns: {
             report_extension: document.getElementById('analysisReportExtension')?.value || '.txt'
         },
-        report_types: reportTypes.length > 0 ? reportTypes : ['CCNApplicationReport'],
+        report_types: reportTypes.length > 0 ? reportTypes : ['MessageStatsReport'],
         filename_structure: {
             delimiter: document.getElementById('analysisFilenameDelimiter')?.value || '_',
             average_files: {
@@ -1474,8 +1474,7 @@ function collectBatchConfig() {
     return {
         folder: document.getElementById('batchFolder')?.value || 'reportQP',
         file_filter: {
-            extension: document.getElementById('batchExtension')?.value || '.txt',
-            contains: document.getElementById('batchFileContains')?.value || ''
+            extension: document.getElementById('batchExtension')?.value || '.txt'
         },
         filename_pattern: {
             delimiter: document.getElementById('batchDelimiter')?.value || '_',
@@ -2223,7 +2222,7 @@ const AVAILABLE_PREDICTORS = [
 ];
 
 const AVAILABLE_REPORT_TYPES = [
-    "CCNApplicationReport", "MessageStatsReport", "CreatedMessagesReport",
+    "MessageStatsReport", "CreatedMessagesReport",
     "DeliveredMessagesReport", "BufferOccupancyReport"
 ];
 
@@ -2520,7 +2519,7 @@ function addAnalysisGroupingLabel(groupingType = '', displayLabel = '') {
 
     const row = document.createElement('tr');
     row.innerHTML = `
-        < td ><input type="text" data-field="type" value="${groupingType}" placeholder="e.g., ttl"></td>
+        <td><input type="text" data-field="type" value="${groupingType}" placeholder="e.g., ttl"></td>
         <td><input type="text" data-field="label" value="${displayLabel}" placeholder="e.g., TTL (seconds)"></td>
         <td>
             <button type="button" class="remove-button" onclick="removeDynamicRow(this)" style="padding: 4px 8px;">
@@ -2651,7 +2650,6 @@ function saveBatchConfigSilent() {
             config.folder = document.getElementById('batchFolder')?.value || 'reports/';
             config.file_filter = config.file_filter || {};
             config.file_filter.extension = document.getElementById('batchExtension')?.value || '.txt';
-            config.file_filter.contains = document.getElementById('batchFileContains')?.value || '';
             config.filename_pattern = config.filename_pattern || {};
             config.filename_pattern.delimiter = document.getElementById('batchDelimiter')?.value || '_';
             config.data_separator = document.getElementById('batchDataSeparator')?.value || ':';
@@ -2731,29 +2729,31 @@ function loadAnalysisConfig() {
             document.getElementById('analysisDataSeparator').value = config.data_separator || ':';
             document.getElementById('analysisReportExtension').value = config.file_patterns?.report_extension || '.txt';
 
-            // Report Types using Tagify
-            if (reportTypesTagify && config.report_types) {
+            // Report Types using Tagify - only override if config has values
+            if (reportTypesTagify && config.report_types && config.report_types.length > 0) {
                 reportTypesTagify.removeAllTags();
                 reportTypesTagify.addTags(config.report_types);
             }
 
-            // Metrics using Tagify
-            if (metricsIncludeTagify && config.metrics?.include) {
+            // Metrics using Tagify - only override if config has values
+            if (metricsIncludeTagify && config.metrics?.include && config.metrics.include.length > 0) {
                 metricsIncludeTagify.removeAllTags();
                 metricsIncludeTagify.addTags(config.metrics.include);
             }
-            if (metricsIgnoreTagify && config.metrics?.ignore) {
+            if (metricsIgnoreTagify && config.metrics?.ignore && config.metrics.ignore.length > 0) {
                 metricsIgnoreTagify.removeAllTags();
                 metricsIgnoreTagify.addTags(config.metrics.ignore);
             }
 
-            // Enabled plots using Tagify
+            // Enabled plots using Tagify - only override if config has values
             if (enabledPlotsTagify && config.enabled_plots) {
-                enabledPlotsTagify.removeAllTags();
                 const enabledPlots = Object.entries(config.enabled_plots)
                     .filter(([key, value]) => value === true)
                     .map(([key]) => key);
-                enabledPlotsTagify.addTags(enabledPlots);
+                if (enabledPlots.length > 0) {
+                    enabledPlotsTagify.removeAllTags();
+                    enabledPlotsTagify.addTags(enabledPlots);
+                }
             }
 
             // Advanced Settings - Filename Structure
@@ -2846,7 +2846,6 @@ function loadBatchConfig() {
             }
             document.getElementById('batchFolder').value = config.folder || '';
             document.getElementById('batchExtension').value = config.file_filter?.extension || '.txt';
-            document.getElementById('batchFileContains').value = config.file_filter?.contains || '';
             document.getElementById('batchDelimiter').value = config.filename_pattern?.delimiter || '_';
             document.getElementById('batchDataSeparator').value = config.data_separator || ':';
             document.getElementById('batchPrecision').value = config.output?.precision || 4;
@@ -2872,14 +2871,20 @@ function loadBatchConfig() {
             if (groupsBody) {
                 groupsBody.innerHTML = '';
                 const groups = config.average_groups || [];
-                groups.forEach(group => {
-                    addBatchAverageGroup(
-                        group.name || '',
-                        group.group_by || [],
-                        group.min_files || 2,
-                        group.output_template || ''
-                    );
-                });
+                if (groups.length > 0) {
+                    groups.forEach(group => {
+                        addBatchAverageGroup(
+                            group.name || '',
+                            group.group_by || [],
+                            group.min_files || 2,
+                            group.output_template || ''
+                        );
+                    });
+                } else {
+                    // Add default average groups if none defined
+                    addBatchAverageGroup('ttl_average', ['router', 'ttl'], 2, '{report_type}_{router}_{ttl}_ttl_average.txt');
+                    addBatchAverageGroup('buffer_average', ['router', 'buffer'], 2, '{report_type}_{router}_{buffer}_buffer_average.txt');
+                }
             }
 
             // Update the pattern preview after loading
@@ -2895,7 +2900,6 @@ function saveBatchConfig() {
             config.folder = document.getElementById('batchFolder').value;
             config.file_filter = config.file_filter || {};
             config.file_filter.extension = document.getElementById('batchExtension').value;
-            config.file_filter.contains = document.getElementById('batchFileContains').value;
 
             config.filename_pattern = config.filename_pattern || {};
             config.filename_pattern.delimiter = document.getElementById('batchDelimiter').value;
@@ -2941,18 +2945,23 @@ function loadRegressionConfig() {
                 return;
             }
             document.getElementById('regressionCsvDir').value = config.input?.csv_directory || '';
-            document.getElementById('regressionOutputDir').value = config.output?.directory || '';
-            document.getElementById('regressionTarget').value = config.features?.target || '';
-            document.getElementById('regressionSelectionMode').value = config.features?.selection_mode || 'manual';
+            document.getElementById('regressionOutputDir').value = config.output?.directory || 'regression_results/';
 
-            // Predictors using Tagify
-            if (predictorsTagify && config.features?.predictors) {
+            // Target using Tagify - supports multiple targets
+            const targets = config.features?.targets || (config.features?.target ? [config.features.target] : []);
+            if (regressionTargetTagify && targets.length > 0) {
+                regressionTargetTagify.removeAllTags();
+                regressionTargetTagify.addTags(targets);
+            }
+
+            // Predictors using Tagify - only override if config has values
+            if (predictorsTagify && config.features?.predictors && config.features.predictors.length > 0) {
                 predictorsTagify.removeAllTags();
                 predictorsTagify.addTags(config.features.predictors);
             }
 
-            // Exclude variables using Tagify
-            if (regressionExcludeTagify && config.features?.exclude) {
+            // Exclude variables using Tagify - only override if config has values
+            if (regressionExcludeTagify && config.features?.exclude && config.features.exclude.length > 0) {
                 regressionExcludeTagify.removeAllTags();
                 regressionExcludeTagify.addTags(config.features.exclude);
             }
@@ -2960,13 +2969,15 @@ function loadRegressionConfig() {
             document.getElementById('regressionTrainSize').value = config.model_settings?.split_settings?.train_size || 0.75;
             document.getElementById('regressionRandomState').value = config.model_settings?.split_settings?.random_state || 5;
 
-            // Enabled models using Tagify
+            // Enabled models using Tagify - only override if config has values
             if (enabledModelsTagify && config.model_settings?.enabled_models) {
-                enabledModelsTagify.removeAllTags();
                 const enabledModels = Object.entries(config.model_settings.enabled_models)
                     .filter(([key, value]) => value === true)
                     .map(([key]) => key);
-                enabledModelsTagify.addTags(enabledModels);
+                if (enabledModels.length > 0) {
+                    enabledModelsTagify.removeAllTags();
+                    enabledModelsTagify.addTags(enabledModels);
+                }
             }
 
             // Checkboxes
@@ -3311,18 +3322,28 @@ function applyFilenamePreset(presetName) {
             positions: {
                 report_type: 5,
                 router: 1,
-                grouping_type: 3  // TTL position for grouping in plots
+                ttl: 3,
+                buffer: 4
             },
             // Average groups: Group by ALL parameters EXCEPT seed
             // This averages results across random seeds for the same configuration
             averageGroups: [
                 {
-                    name: 'config_average',
+                    name: 'avg_TTL',
                     // Group by: report_type + router + ttl + buffer
                     // This averages all seeds for the same TTL+Buffer+Router combo
-                    groupBy: ['report_type', 'router', 'ttl', 'buffer'],
+                    groupBy: ['router', 'ttl'],
                     minFiles: 2,
-                    outputTemplate: '{report_type}_{router}_{ttl}_{buffer}_average.txt'
+                    outputTemplate: "{report_type}_{router}_{ttl}_ttl_average.txt"
+                },
+
+                {
+                    name: 'avg_buffer',
+                    // Group by: report_type + router + ttl + buffer
+                    // This averages all seeds for the same TTL+Buffer+Router combo
+                    groupBy: ['router', 'buffer'],
+                    minFiles: 2,
+                    outputTemplate: "{report_type}_{router}_{buffer}_buffer_average.txt"
                 }
             ],
             example: 'Scenario_Router_Seed_TTL_Buffer_Report.txt'
