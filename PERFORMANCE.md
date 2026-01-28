@@ -47,12 +47,12 @@ This ensures the system never exceeds 75% RAM usage, leaving headroom for the OS
 
 | Parameter | Symbol | Default | Description |
 |-----------|--------|---------|-------------|
-| `ETA` | η | 0.75 | Maximum RAM utilization (75%) |
+| `ETA` | η | 0.90 | Maximum RAM utilization (90%) |
 | `GAMMA` | γ | 3.0 | DataFrame expansion factor |
 | `M_OVERHEAD_MB` | $M_{overhead}$ | 50 MB | Per-worker memory overhead |
 | `MIN_WORKERS` | — | 1 | Minimum worker processes |
-| `MAX_WORKERS` | — | 16 | Maximum worker processes |
-| `FALLBACK_WORKERS` | — | 4 | Default when psutil unavailable |
+| `MAX_WORKERS` | — | 32 | Maximum worker processes |
+| `FALLBACK_WORKERS` | — | 8 | Default when psutil unavailable |
 | `SAFETY_ENABLED` | — | True | Enable/disable memory management |
 
 ### Modifying Parameters

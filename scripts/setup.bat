@@ -6,9 +6,13 @@ REM ============================================================
 
 setlocal EnableDelayedExpansion
 
+REM Navigate to script directory to ensure relative paths work
+pushd "%~dp0"
+
 set "SCRIPT_DIR=%~dp0"
-set "VENV_DIR=%SCRIPT_DIR%venv"
-set "REQUIREMENTS_FILE=%SCRIPT_DIR%requirements.txt"
+set "PROJECT_ROOT=%SCRIPT_DIR%..\"
+set "VENV_DIR=%PROJECT_ROOT%venv"
+set "REQUIREMENTS_FILE=%PROJECT_ROOT%requirements.txt"
 
 echo ============================================
 echo        OppNDA Environment Setup
@@ -21,6 +25,7 @@ where python >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     echo Error: Python is not installed or not in PATH
     pause
+    popd
     exit /b 1
 )
 
@@ -35,11 +40,13 @@ for /f "tokens=1,2 delims=." %%a in ("%PYTHON_VERSION%") do (
 if %MAJOR% lss 3 (
     echo Error: Python 3.8 or higher is required
     pause
+    popd
     exit /b 1
 )
 if %MAJOR% equ 3 if %MINOR% lss 8 (
     echo Error: Python 3.8 or higher is required
     pause
+    popd
     exit /b 1
 )
 echo   [OK] Python version OK
@@ -82,7 +89,7 @@ if exist "%REQUIREMENTS_FILE%" (
     pip install -r "%REQUIREMENTS_FILE%" --quiet
     echo   [OK] Requirements installed
 ) else (
-    echo   Warning: requirements.txt not found
+    echo   Warning: requirements.txt not found at %REQUIREMENTS_FILE%
 )
 echo.
 
@@ -107,9 +114,11 @@ echo        Setup Complete!
 echo ============================================
 echo.
 echo To activate the virtual environment in the future, run:
-echo   venv\Scripts\activate
+echo   ..\venv\Scripts\activate
 echo.
 echo To start OppNDA, run:
-echo   python run.py
+echo   start.bat
 echo.
+
+popd
 pause

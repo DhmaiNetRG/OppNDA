@@ -5,7 +5,8 @@
 # ============================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_DIR="${SCRIPT_DIR}/venv"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+VENV_DIR="${PROJECT_ROOT}/venv"
 
 echo "Starting OppNDA..."
 echo
@@ -24,4 +25,4 @@ echo
 echo "Starting server at http://localhost:5000"
 echo "Press Ctrl+C to stop the server."
 echo
-python "${SCRIPT_DIR}/run.py"
+python "${PROJECT_ROOT}/run.py"

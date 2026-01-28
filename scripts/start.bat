@@ -4,8 +4,14 @@ REM OppNDA Launcher (Windows)
 REM Activates virtual environment and starts the application
 REM ============================================================
 
+setlocal
+
+REM Navigate to script directory
+pushd "%~dp0"
+
 set "SCRIPT_DIR=%~dp0"
-set "VENV_DIR=%SCRIPT_DIR%venv"
+set "PROJECT_ROOT=%SCRIPT_DIR%..\"
+set "VENV_DIR=%PROJECT_ROOT%venv"
 
 echo Starting OppNDA...
 echo.
@@ -15,6 +21,7 @@ if not exist "%VENV_DIR%\Scripts\activate.bat" (
     echo Virtual environment not found!
     echo Please run setup.bat first to create the environment.
     pause
+    popd
     exit /b 1
 )
 
@@ -25,4 +32,6 @@ echo.
 echo Starting server at http://localhost:5000
 echo Press Ctrl+C to stop the server.
 echo.
-python "%SCRIPT_DIR%run.py"
+python "%PROJECT_ROOT%run.py"
+
+popd

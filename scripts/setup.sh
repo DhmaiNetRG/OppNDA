@@ -7,8 +7,9 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_DIR="${SCRIPT_DIR}/venv"
-REQUIREMENTS_FILE="${SCRIPT_DIR}/requirements.txt"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+VENV_DIR="${PROJECT_ROOT}/venv"
+REQUIREMENTS_FILE="${PROJECT_ROOT}/requirements.txt"
 
 # Colors for output
 RED='\033[0;31m'
@@ -117,8 +118,8 @@ echo -e "${GREEN}       Setup Complete!${NC}"
 echo -e "${BLUE}============================================${NC}"
 echo
 echo -e "To activate the virtual environment in the future, run:"
-echo -e "  ${YELLOW}source venv/bin/activate${NC}  (Unix/macOS)"
+echo -e "  ${YELLOW}source ../venv/bin/activate${NC}  (Unix/macOS)"
 echo
 echo -e "To start OppNDA, run:"
-echo -e "  ${YELLOW}python run.py${NC}"
+echo -e "  ${YELLOW}./start.sh${NC}"
 echo

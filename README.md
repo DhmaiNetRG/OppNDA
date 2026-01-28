@@ -10,7 +10,6 @@
 
 ## Features
 
-- 🎨 **Modern UI** — Professional, responsive design with Pattern Builder and Directory Browser
 - 🎛️ **Scenario Configuration** — Generate ONE Simulator configuration files through an intuitive web interface
 - 📥 **Config Import** — Import existing ONE .txt config files directly into the GUI
 - ▶️ **Run ONE Pipeline** — Complete simulation workflow: save config → run ONE → auto post-processing
@@ -19,7 +18,6 @@
 - 🚀 **Real-time Analysis** — Instant logging and progress feedback during visualization generation
 - 💾 **Auto-Save** — Silent, automatic persistence of configuration changes
 - 🛠️ **Pattern Builder** — Drag-and-drop interface for defining file naming conventions
-- 📂 **Directory Browser** — Safe, absolute-path file navigation for cross-platform compatibility
 - 🤖 **Multi-Target ML** — Train regression models on multiple target variables simultaneously
 - ⚙️ **Flexible Configuration** — JSON-based settings with automatic backup and deep-merge preservation
 - 🧠 **Dynamic Memory Management** — Intelligent worker optimization to prevent swap-thrashing
@@ -27,23 +25,13 @@
 
 ## Quick Start
 
-### Windows
-```batch
-# First time setup
-setup.bat
+### First Time Setup
+- **Windows**: Run `scripts\setup.bat`
+- **Unix/Linux**: Run `bash scripts/setup.sh`
 
-# Launch application
-start.bat
-```
-
-### Linux/macOS
-```bash
-# First time setup
-chmod +x setup.sh && ./setup.sh
-
-# Launch application
-./start.sh
-```
+### Launch Application
+- **Windows**: Run `scripts\start.bat`
+- **Unix/Linux**: Run `bash scripts/start.sh`
 
 The web interface will be available at `http://localhost:5000/settings`
 
@@ -143,7 +131,7 @@ workers = get_optimal_workers(safety_enabled=False)
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `eta` (η) | 0.75 | Maximum RAM utilization threshold |
+| `eta` (η) | 0.90 | Maximum RAM utilization threshold |
 | `gamma` (γ) | 3.0 | DataFrame expansion factor |
 | `safety_enabled` | True | Enable/disable memory management |
 
@@ -161,14 +149,21 @@ oppnda/
 │   ├── averager.py      # Report averaging
 │   ├── analysis.py      # Visualization engine
 │   ├── regression.py    # ML regression
-│   └── resource_manager.py  # Dynamic memory management
+│   ├── resource_manager.py  # Dynamic memory management
+│   └── path_utils.py    # Cross-platform utilities
 ├── config/              # Configuration files
 ├── GUI/                 # Frontend assets
 │   ├── settings.html    # Main settings interface
 │   ├── settings.css     # Settings styles
 │   ├── nda.html         # NDA generator interface
 │   ├── nda.css          # NDA generator styles
-│   └── config.js        # Frontend logic
+│   ├── config.js        # Frontend logic
+│   ├── pattern-builder.js # Drag-drop builder
+│   ├── directory-browser.js # File navigation
+│   ├── auto-save.js     # Auto-save manager
+│   ├── settings-modern.css # Modern styling
+│   └── directory-browser.css # Browser styling
+├── scripts/             # Setup and launcher scripts
 ├── examples/            # Example configurations
 ├── tests/               # Test suite
 ├── run.py               # Entry point
