@@ -46,7 +46,6 @@ source venv/bin/activate  # or venv\Scripts\activate on Windows
 pip install -r requirements.txt
 
 # Run application
-# Run application
 python OppNDA.py
 ```
 
@@ -58,7 +57,7 @@ docker-compose up --build
 
 # Or build manually
 docker build -t oppnda .
-docker run -p 5000:5000 oppnda
+docker run -p 5000:5000 --name OppNDA oppnda
 ```
 
 ## Usage
