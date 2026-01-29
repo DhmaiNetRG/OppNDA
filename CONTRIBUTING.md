@@ -64,7 +64,7 @@ Feature suggestions are welcome! Please include:
 
 4. **Run the development server**
    ```bash
-   python run.py --debug
+   python OppNDA.py --debug
    ```
 
 5. **Run tests**

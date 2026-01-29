@@ -46,7 +46,8 @@ source venv/bin/activate  # or venv\Scripts\activate on Windows
 pip install -r requirements.txt
 
 # Run application
-python scripts/run.py
+# Run application
+python OppNDA.py
 ```
 
 ### Docker
@@ -140,7 +141,8 @@ workers = get_optimal_workers(safety_enabled=False)
 ## Project Structure
 
 ```
-oppnda/
+OppNDA/
+├── OppNDA.py            # Application entry point
 ├── app/                 # Flask application
 │   ├── __init__.py      # App factory
 │   ├── api.py           # REST API endpoints
@@ -183,7 +185,6 @@ Tests include:
 - Module import tests  
 - Flask app integration tests
 - Resource manager tests
-- GUI interactive tests
 
 ## API Reference
 

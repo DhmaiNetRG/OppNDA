@@ -39,6 +39,6 @@ services:
     environment:
       - FLASK_ENV=development
       - FLASK_DEBUG=1
-    command: [ "python", "scripts/run.py", "--host", "0.0.0.0", "--port", "5001", "--debug" ]
+    command: [ "python", "OppNDA.py", "--host", "0.0.0.0", "--port", "5001", "--debug" ]
     profiles:
       - dev
