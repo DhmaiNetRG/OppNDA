@@ -4,21 +4,10 @@ Thank you for your interest in contributing to OppNDA! This document provides gu
 
 ## Table of Contents
 
-- [Code of Conduct](#code-of-conduct)
 - [Getting Started](#getting-started)
 - [How to Contribute](#how-to-contribute)
 - [Development Setup](#development-setup)
 - [Code Style](#code-style)
-- [Pull Request Process](#pull-request-process)
-
-## Code of Conduct
-
-This project adheres to a code of conduct. By participating, you are expected to:
-
-- Be respectful and inclusive
-- Accept constructive criticism gracefully
-- Focus on what is best for the community
-- Show empathy towards other community members
 
 ## Getting Started
 
