@@ -3315,9 +3315,19 @@ async function runAllPostProcessing() {
             const data = await response.json();
 
             if (data.success) {
-                if (logPre) logPre.textContent += `  ✓ ${data.message}\n`;
+                if (logPre) {
+                    logPre.textContent += `  ✓ ${data.message}\n`;
+                    if (data.output) {
+                        logPre.textContent += `  --- Output ---\n${data.output}\n`;
+                    }
+                }
             } else {
-                if (logPre) logPre.textContent += `  ✗ ${data.message}\n`;
+                if (logPre) {
+                    logPre.textContent += `  ✗ ${data.message}\n`;
+                    if (data.output) {
+                        logPre.textContent += `  --- Error ---\n${data.output}\n`;
+                    }
+                }
                 allSuccess = false;
                 // Continue to next step even if one fails
             }
