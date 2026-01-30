@@ -215,7 +215,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
 
-© 2026 [DHMAI Network Research Group](https://dhmairg.net)
+[DHMAI Network Research Group](https://dhmairg.net) 2026
 
 ## Acknowledgments
 
