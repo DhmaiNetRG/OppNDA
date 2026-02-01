@@ -29,7 +29,7 @@ REM Activate virtual environment and run
 call "%VENV_DIR%\Scripts\activate.bat"
 echo Virtual environment activated.
 echo.
-echo Starting server at http://localhost:5000
+echo Starting server at http://localhost:5001
 echo Press Ctrl+C to stop the server.
 echo.
 python "%PROJECT_ROOT%OppNDA.py"

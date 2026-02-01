@@ -18,7 +18,7 @@ Using the GUI
 The easiest way to configure OppNDA is through the web GUI:
 
 1. Start the server: ``python OppNDA.py``
-2. Open http://localhost:5000
+2. Open http://localhost:5001
 3. Navigate to the Settings page
 4. Adjust settings and click Save
 

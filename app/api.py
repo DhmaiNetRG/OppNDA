@@ -31,7 +31,7 @@ Example:
         
         app = Flask(__name__)
         app.register_blueprint(api_bp, url_prefix='/api')
-        app.run(port=5000)
+        app.run(port=5001)
 
 Attributes:
     api_bp (Blueprint): Flask Blueprint for API routes.

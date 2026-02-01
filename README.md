@@ -33,7 +33,7 @@
 - **Windows**: Run `scripts\start.bat`
 - **Unix/Linux**: Run `bash scripts/start.sh`
 
-The web interface will be available at `http://localhost:5000/settings`
+The web interface will be available at `http://localhost:5001/settings`
 
 ### Manual Installation
 
@@ -57,7 +57,7 @@ docker-compose up --build
 
 # Or build manually
 docker build -t oppnda .
-docker run -p 5000:5000 --name OppNDA oppnda
+docker run -p 5001:5001 --name OppNDA oppnda
 ```
 
 ## Usage

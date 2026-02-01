@@ -279,7 +279,7 @@ docker-compose up --build
 docker build -t oppnda .
 
 # Run the container
-docker run -p 5000:5000 --name OppNDA oppnda
+docker run -p 5001:5001 --name OppNDA oppnda
 \end{lstlisting}
 
 \screenshotplaceholder{docker-running}{OppNDA running in a Docker container}
@@ -293,7 +293,7 @@ Docker is particularly useful for consistent deployment across different machine
 After launching OppNDA, open your web browser and navigate to:
 
 \begin{center}
-    \url{http://localhost:5000/settings}
+    \url{http://localhost:5001/settings}
 \end{center}
 
 \screenshotplaceholder{homepage}{OppNDA web interface home page}

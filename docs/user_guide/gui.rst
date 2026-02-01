@@ -10,7 +10,7 @@ Starting the GUI
 
     python OppNDA.py
 
-Open http://localhost:5000 in your browser.
+Open http://localhost:5001 in your browser.
 
 Main Pages
 ----------
