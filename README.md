@@ -33,7 +33,7 @@
 - **Windows**: Run `scripts\start.bat`
 - **Unix/Linux**: Run `bash scripts/start.sh`
 
-The web interface will be available at `http://localhost:5001/settings`. The OppNDA codebase should reside in the ONE simulator directory.
+The web interface will be available at `http://localhost:5001/settings`. Make sure the OppNDA codebase exists within the directory of the ONE simulator.
 
 ### Manual Installation
 
