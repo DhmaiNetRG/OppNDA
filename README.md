@@ -118,7 +118,7 @@ OppNDA implements **dynamic memory management** to efficiently process large dat
 from core.resource_manager import get_optimal_workers
 
 # Automatic worker calculation (default)
-workers = get_optimal_workers()  # Uses 75% RAM threshold
+workers = get_optimal_workers()  # Uses 85% RAM threshold
 
 # With file-based estimation
 workers = get_optimal_workers(file_paths=['report1.txt', 'report2.txt'])
@@ -131,8 +131,8 @@ workers = get_optimal_workers(safety_enabled=False)
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `eta` (η) | 0.90 | Maximum RAM utilization threshold |
-| `gamma` (γ) | 3.0 | DataFrame expansion factor |
+| `eta` (η) | 0.85 | Maximum RAM utilization threshold |
+| `gamma` (γ) | 2.5 | DataFrame expansion factor |
 | `safety_enabled` | True | Enable/disable memory management |
 
 > 📖 **See [PERFORMANCE.md](PERFORMANCE.md) for mathematical models, API reference, benchmarks, and advanced configuration.**
