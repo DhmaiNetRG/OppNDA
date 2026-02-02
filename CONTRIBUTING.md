@@ -31,34 +31,48 @@ Feature suggestions are welcome! Please include:
 
 ## Development Setup
 
+### Quick Setup (Recommended)
+
 1. **Fork and clone the repository**
    ```bash
    git clone https://github.com/yourusername/OppNDA.git
    cd OppNDA
    ```
 
-2. **Create a virtual environment**
+2. **Run the setup script**
+   - **Windows**: `scripts\setup.bat`
+   - **Unix/Linux/macOS**: `bash scripts/setup.sh`
+
+3. **Launch the application**
+   - **Windows**: `scripts\start.bat`
+   - **Unix/Linux/macOS**: `bash scripts/start.sh`
+
+> **Note**: The scripts fully support paths with special characters (e.g., `C:\R&D\OppNDA`).
+
+### Manual Setup
+
+1. **Create a virtual environment**
    ```bash
-   python -m venv .venv
+   python -m venv venv
    # Windows
-   .venv\Scripts\activate
+   venv\Scripts\activate
    # Linux/macOS
-   source .venv/bin/activate
+   source venv/bin/activate
    ```
 
-3. **Install dependencies**
+2. **Install dependencies**
    ```bash
    pip install -r requirements.txt
    ```
 
-4. **Run the development server**
+3. **Run the development server**
    ```bash
    python OppNDA.py --debug
    ```
 
-5. **Run tests**
+4. **Run tests**
    ```bash
-   python tests/run_tests.py
+   pytest tests/ -v
    ```
 
 ## Code Style

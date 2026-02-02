@@ -57,7 +57,10 @@ docker-compose up --build
 
 # Or build manually
 docker build -t oppnda .
-docker run -p 5001:5001 --name OppNDA oppnda
+docker run -p 5001:5001 --name oppnda oppnda
+
+# Development mode with hot reload
+docker-compose --profile dev up oppnda-dev
 ```
 
 ## Usage

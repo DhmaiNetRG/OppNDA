@@ -1,11 +1,11 @@
 version: '3.8'
 
 services:
-  OppNDA:
+  oppnda:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: OppNDA
+    container_name: oppnda
     ports:
       - "5001:5001"
     volumes:
