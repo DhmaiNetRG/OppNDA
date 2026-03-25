@@ -146,18 +146,45 @@ def generate_default_settings(overrides: Optional[Dict[str, Any]] = None) -> str
     # Generate timestamp for unique scenario names
     scenario_name = config.get('scenario_name', DEFAULT_SCENARIO_NAME)
     
-    # Build Scenario.name dynamically from gui_options placeholders
+    # Build Scenario.name from the filename_pattern in averager config
+    # This ensures the simulator output filenames match what the averager expects
     try:
         gui_opts = _load_gui_options()
         placeholders = gui_opts.get('one_placeholders', {})
     except Exception:
         placeholders = {}
     
-    if placeholders:
+    try:
+        averager_cfg = _load_averager_config()
+        pattern = averager_cfg.get('filename_pattern', {})
+        pattern_delimiter = pattern.get('delimiter', '_')
+        components = pattern.get('components', {})
+    except Exception:
+        pattern_delimiter = '_'
+        components = {}
+    
+    if components:
+        # Sort components by position to get the correct order
+        ordered = sorted(components.items(), key=lambda x: x[1])
+        parts = []
+        for name, _ in ordered:
+            if name in ('scenario', 'scenario_name'):
+                parts.append(scenario_name)
+            elif name in ('reports', 'report_type'):
+                # Report type is auto-appended by ONE simulator — skip
+                continue
+            elif name in placeholders:
+                parts.append(placeholders[name])
+            else:
+                # Unknown component — include as literal text
+                parts.append(name)
+        scenario_name_template = pattern_delimiter.join(parts) if parts else scenario_name
+    elif placeholders:
+        # Fallback: use placeholders in their dict order
         placeholder_parts = [f'{p}' for p in placeholders.values()]
         scenario_name_template = scenario_name + '_' + '_'.join(placeholder_parts)
     else:
-        # Fallback: basic template
+        # Last resort fallback
         scenario_name_template = f"{scenario_name}_%%Group.router%%_%%MovementModel.rngSeed%%"
     
     content = f"""#
@@ -268,6 +295,23 @@ def _load_gui_options():
         gui_options_path = config_dir / CONFIG_FILES.get('gui_options', 'gui_options.json')
         if gui_options_path.exists():
             with open(gui_options_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+
+def _load_averager_config():
+    """Load averager_config.json from the config directory.
+    
+    Returns:
+        dict: The averager config, or empty dict if not found.
+    """
+    try:
+        config_dir = current_app.config['CONFIG_DIR']
+        averager_path = config_dir / CONFIG_FILES.get('averager', 'averager_config.json')
+        if averager_path.exists():
+            with open(averager_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
     except Exception:
         pass

@@ -23,6 +23,23 @@
 - 🧠 **Dynamic Memory Management** — Intelligent worker optimization to prevent swap-thrashing
 - 🖥️ **Cross-Platform** — Full support for Windows, Linux, and macOS
 
+### Dependencies by Feature
+
+| Feature | Libraries |
+|---------|-----------|
+| Web Server / GUI | `Flask`, `flask-cors` |
+| REST API & Routing | `Flask` (Blueprint, jsonify, request, Response) |
+| Data Processing & Cleaning | `pandas`, `numpy` |
+| Data Visualization (line, surface, violin, heatmap, pairplot) | `matplotlib`, `seaborn`, `numpy` |
+| Report Averaging (multiprocessing) | `numpy`, `multiprocessing` (stdlib) |
+| ML Regression (Linear, Ridge, Lasso, KNN, Decision Tree, Random Forest, Gradient Boosting) | `scikit-learn`, `pandas`, `numpy` |
+| System Monitoring / Resource Management | `psutil` |
+| Cross-Platform Path Handling | `pathlib`, `os` (stdlib) |
+| Subprocess / Simulation Execution | `subprocess`, `platform` (stdlib) |
+| Configuration Management | `json` (stdlib) |
+| Parallel Processing | `multiprocessing`, `threading` (stdlib) |
+| Testing | `pytest`, `pytest-cov` |
+
 ## Quick Start
 
 ### First Time Setup

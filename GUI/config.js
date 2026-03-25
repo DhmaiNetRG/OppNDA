@@ -1418,12 +1418,24 @@ function collectAnalysisConfig() {
         },
         report_types: reportTypes.length > 0 ? reportTypes : ['MessageStatsReport'],
         filename_structure: {
-            delimiter: document.getElementById('analysisFilenameDelimiter')?.value || '_',
+            delimiter: window.patternBuilder?.delimiter || document.getElementById('analysisFilenameDelimiter')?.value || '_',
             average_files: {
                 report_type_position: parseInt(document.getElementById('analysisReportTypePos')?.value) || 0,
                 router_position: parseInt(document.getElementById('analysisRouterPos')?.value) || 1,
                 grouping_type_position: parseInt(document.getElementById('analysisGroupingTypePos')?.value) || -1
-            }
+            },
+            raw_files: (window.patternBuilder && window.patternBuilder.patternNames.length > 0) ? {
+                positions: (() => {
+                    const positions = {};
+                    window.patternBuilder.patternNames.forEach((name, index) => {
+                        // Map pattern builder names to analysis config names
+                        const mappedName = name === 'scenario' ? 'prefix' :
+                            name === 'reports' ? 'report_type' : name;
+                        positions[mappedName] = index;
+                    });
+                    return positions;
+                })()
+            } : undefined
         },
         grouping_labels: groupingLabels,
         metrics: {
@@ -2989,6 +3001,15 @@ function saveBatchConfigSilent() {
             config.file_filter.extension = document.getElementById('batchExtension')?.value || '.txt';
             config.filename_pattern = config.filename_pattern || {};
             config.filename_pattern.delimiter = document.getElementById('batchDelimiter')?.value || '_';
+            // Sync full pattern components from PatternBuilder
+            if (window.patternBuilder && window.patternBuilder.patternNames.length > 0) {
+                const components = {};
+                window.patternBuilder.patternNames.forEach((name, index) => {
+                    components[name] = index;
+                });
+                config.filename_pattern.components = components;
+                config.filename_pattern.delimiter = window.patternBuilder.delimiter;
+            }
             config.data_separator = document.getElementById('batchDataSeparator')?.value || ':';
             config.output = config.output || {};
             config.output.precision = parseInt(document.getElementById('batchPrecision')?.value) || 4;

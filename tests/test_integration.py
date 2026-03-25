@@ -320,6 +320,69 @@ Report.report2 = MessageStatsReport
         # Should be able to identify router and report type
         assert 'EpidemicRouter' in parts or 'Router' in ''.join(parts)
     
+    def test_generated_scenario_name_matches_averager_pattern(self):
+        """Test that generate_default_settings() builds Scenario.name consistent with averager pattern."""
+        client, app = get_test_client()
+        if client is None:
+            pytest.skip("Flask app not available")
+        
+        with app.app_context():
+            from app.api import generate_default_settings
+            content = generate_default_settings()
+        
+        # Extract Scenario.name from generated content
+        scenario_line = None
+        for line in content.split('\n'):
+            if line.strip().startswith('Scenario.name'):
+                scenario_line = line.strip()
+                break
+        
+        assert scenario_line is not None, "Generated settings must include Scenario.name"
+        
+        # Load averager config
+        config_path = CONFIG_DIR / 'averager_config.json'
+        with open(config_path, 'r', encoding='utf-8') as f:
+            averager_config = json.load(f)
+        
+        pattern = averager_config['filename_pattern']
+        delimiter = pattern['delimiter']
+        components = pattern['components']
+        
+        # Extract the template value after "="
+        template_value = scenario_line.split('=', 1)[1].strip()
+        
+        # The template should use the same delimiter as the averager config
+        assert delimiter in template_value or len(components) <= 1, \
+            f"Scenario.name template '{template_value}' should use delimiter '{delimiter}'"
+        
+        # Count non-report components in the pattern
+        non_report_components = [
+            name for name in components.keys()
+            if name not in ('reports', 'report_type')
+        ]
+        
+        # The template parts should match the number of non-report components
+        template_parts = template_value.split(delimiter)
+        assert len(template_parts) >= len(non_report_components) - 1, \
+            f"Template has {len(template_parts)} parts but pattern has {len(non_report_components)} non-report components"
+    
+    def test_pattern_consistency_across_configs(self):
+        """Test that averager and analysis configs use consistent delimiters."""
+        averager_path = CONFIG_DIR / 'averager_config.json'
+        analysis_path = CONFIG_DIR / 'analysis_config.json'
+        
+        with open(averager_path, 'r', encoding='utf-8') as f:
+            averager_config = json.load(f)
+        with open(analysis_path, 'r', encoding='utf-8') as f:
+            analysis_config = json.load(f)
+        
+        # Both should use the same delimiter
+        averager_delimiter = averager_config['filename_pattern']['delimiter']
+        analysis_delimiter = analysis_config.get('filename_structure', {}).get('delimiter', '_')
+        
+        assert averager_delimiter == analysis_delimiter, \
+            f"Delimiter mismatch: averager='{averager_delimiter}', analysis='{analysis_delimiter}'"
+    
     def test_api_returns_configs_without_error(self):
         """Test all config API endpoints return valid data with defaults."""
         client, app = get_test_client()
