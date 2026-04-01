@@ -137,57 +137,57 @@
     "default_groups": [
         {
             "groupID": "p",
-            "numHosts": 5,
+            "numHosts": 40,
             "movementModel": "ShortestPathMapBasedMovement",
             "routeFile": "",
             "routeType": 0,
             "router": "EpidemicRouter",
             "activeTimes": "0",
-            "messageTTL": "50"
+            "messageTTL": "300"
         },
         {
-            "groupID": "c",
-            "numHosts": 10,
+            "groupID": "car",
+            "numHosts": 40,
             "movementModel": "ShortestPathMapBasedMovement",
             "routeFile": "",
             "routeType": 0,
             "router": "EpidemicRouter",
             "activeTimes": "0",
-            "messageTTL": "100"
+            "messageTTL": "300"
         },
         {
             "groupID": "w",
-            "numHosts": 20,
+            "numHosts": 40,
             "movementModel": "ShortestPathMapBasedMovement",
             "routeFile": "",
             "routeType": 0,
             "router": "EpidemicRouter",
             "activeTimes": "0",
-            "messageTTL": "150"
+            "messageTTL": "300"
         },
         {
             "groupID": "t",
-            "numHosts": 15,
+            "numHosts": 2,
             "movementModel": "MapRouteMovement",
             "routeFile": "data/tram3.wkt",
             "routeType": 1,
             "router": "EpidemicRouter",
             "activeTimes": "0",
-            "messageTTL": "200"
+            "messageTTL": "300"
         },
         {
             "groupID": "t",
-            "numHosts": 12,
+            "numHosts": 2,
             "movementModel": "MapRouteMovement",
             "routeFile": "data/tram4.wkt",
             "routeType": 2,
             "router": "EpidemicRouter",
             "activeTimes": "0",
-            "messageTTL": "250"
+            "messageTTL": "300"
         },
         {
             "groupID": "t",
-            "numHosts": 8,
+            "numHosts": 2,
             "movementModel": "MapRouteMovement",
             "routeFile": "data/tram10.wkt",
             "routeType": 2,

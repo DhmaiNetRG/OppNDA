@@ -34,12 +34,12 @@ function escapeHtml(text) {
  */
 function getLogColor(level) {
     const colors = {
-        'info': '#94a3b8',      // Gray
-        'success': '#34d399',   // Green
-        'warning': '#fbbf24',   // Yellow/Orange
-        'error': '#f87171',     // Red
-        'step': '#a78bfa',      // Purple
-        'output': '#64748b'     // Dim gray
+        'info': '#e2e8f0',      // Bright slate - readable on dark bg
+        'success': '#4ade80',   // Vivid green
+        'warning': '#facc15',   // Vivid yellow
+        'error': '#fb7185',     // Vivid rose
+        'step': '#c084fc',      // Vivid purple
+        'output': '#94a3b8'     // Readable gray (was nearly invisible)
     };
     return colors[level] || colors.info;
 }
@@ -53,7 +53,7 @@ function createLogLine(level, message) {
     const escapedMessage = escapeHtml(message);
 
     return `<div style="font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; line-height: 1.6; color: ${color}; padding: 2px 0;">
-        <span style="color: #475569; margin-right: 8px;">[${timestamp}]</span>${escapedMessage}
+        <span style="color: #64748b; margin-right: 8px;">[${timestamp}]</span>${escapedMessage}
     </div>`;
 }
 
@@ -123,6 +123,57 @@ function showConsole() {
     }
 }
 
+// Track the active EventSource for stop functionality
+let _activeEventSource = null;
+let _activeStep = null;
+
+/**
+ * Stop the currently running process
+ */
+function stopProcess() {
+    // Close the EventSource to stop receiving updates
+    if (_activeEventSource) {
+        _activeEventSource.close();
+        _activeEventSource = null;
+    }
+
+    // Terminate the backend process
+    const target = _activeStep || 'post_processing';
+    logWarning(`Terminating ${target}...`);
+
+    fetch('/api/terminate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: 'post_processing' })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                logWarning(`⛔ ${data.message}`);
+                showSaveStatus('Process stopped', false);
+            } else {
+                logError(`Stop failed: ${data.message}`);
+            }
+            _activeStep = null;
+            updateConsoleButtons(false);
+        })
+        .catch(error => {
+            logError(`Stop error: ${error.message}`);
+            _activeStep = null;
+            updateConsoleButtons(false);
+        });
+}
+
+/**
+ * Update the visibility of stop button in console header
+ */
+function updateConsoleButtons(isRunning) {
+    const stopBtn = document.getElementById('consoleStopBtn');
+    if (stopBtn) {
+        stopBtn.style.display = isRunning ? 'inline-flex' : 'none';
+    }
+}
+
 /**
  * Run a post-processing step with real-time streaming
  */
@@ -147,9 +198,12 @@ function runStreamingStep(step) {
     }
 
     const startTime = Date.now();
+    _activeStep = step;
+    updateConsoleButtons(true);
 
     // Create EventSource for SSE streaming
     const eventSource = new EventSource(endpoint);
+    _activeEventSource = eventSource;
 
     eventSource.onmessage = function (event) {
         try {
@@ -208,6 +262,9 @@ function runStreamingStep(step) {
 
     eventSource.onerror = function (error) {
         eventSource.close();
+        _activeEventSource = null;
+        _activeStep = null;
+        updateConsoleButtons(false);
         logError('Connection error or stream ended');
         showSaveStatus(`✗ ${step} error`, false);
     };
@@ -275,6 +332,9 @@ function runStreamingStepAsync(step) {
         }
 
         const eventSource = new EventSource(endpoint);
+        _activeEventSource = eventSource;
+        _activeStep = step;
+        updateConsoleButtons(true);
         let success = true;
 
         eventSource.onmessage = function (event) {
@@ -327,6 +387,9 @@ function runStreamingStepAsync(step) {
 
         eventSource.onerror = function () {
             eventSource.close();
+            _activeEventSource = null;
+            _activeStep = null;
+            updateConsoleButtons(false);
             resolve(false);
         };
     });
@@ -389,3 +452,4 @@ window.showConsole = showConsole;
 window.runStreamingStep = runStreamingStep;
 window.runAllStreamingSteps = runAllStreamingSteps;
 window.formatBackendOutput = formatBackendOutput;
+window.stopProcess = stopProcess;

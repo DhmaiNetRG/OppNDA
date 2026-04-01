@@ -1,3 +1,18 @@
+/**
+ * Helper function to parse ONE Simulator batch expressions safely.
+ * ONE Simulator uses semicolons to denote array elements (e.g. [1; 5] is two elements, 1 and 5).
+ */
+function calculateBatchSize(valueStr) {
+    if (!valueStr || typeof valueStr !== 'string') return 1;
+    
+    // Clean brackets
+    let cleanStr = valueStr.replace(/^\[/, '').replace(/\]$/, '').trim();
+    if (!cleanStr.includes(';')) return 1;
+
+    let parts = cleanStr.split(';').map(p => p.trim()).filter(p => p !== '');
+    return parts.length || 1;
+}
+
 // Default values for interface settings
 const interfaceSettings = [
     { name: "btInterface", type: "SimpleBroadcastInterface", transmitSpeed: "250k", transmitRange: "10" },
@@ -7,12 +22,12 @@ const interfaceSettings = [
 // Interface Tagify will be initialized in DOMContentLoaded
 // Default values for group settings
 let groupSettings = [
-    { groupID: 'p', numHosts: 5, movementModel: "ShortestPathMapBasedMovement", routeFile: "", routeType: 0, router: "EpidemicRouter", activeTimes: "0", messageTTL: "50", actions: "Edit/Delete" },
-    { groupID: 'c', numHosts: 10, movementModel: "ShortestPathMapBasedMovement", routeFile: "", routeType: 0, router: "EpidemicRouter", activeTimes: "0", messageTTL: "100", actions: "Edit/Delete" },
-    { groupID: 'w', numHosts: 20, movementModel: "ShortestPathMapBasedMovement", routeFile: "", routeType: 0, router: "EpidemicRouter", activeTimes: "0", messageTTL: "150", actions: "Edit/Delete" },
-    { groupID: 't', numHosts: 15, movementModel: "MapRouteMovement", routeFile: "data/tram3.wkt", routeType: 1, router: "EpidemicRouter", activeTimes: "0", messageTTL: "200", actions: "Edit/Delete" },
-    { groupID: 't', numHosts: 12, movementModel: "MapRouteMovement", routeFile: "data/tram4.wkt", routeType: 2, router: "EpidemicRouter", activeTimes: "0", messageTTL: "250", actions: "Edit/Delete" },
-    { groupID: 't', numHosts: 8, movementModel: "MapRouteMovement", routeFile: "data/tram10.wkt", routeType: 2, router: "EpidemicRouter", activeTimes: "0", messageTTL: "300", actions: "Edit/Delete" }
+    { groupID: 'p', numHosts: 40, movementModel: "ShortestPathMapBasedMovement", routeFile: "", routeType: 0, router: "EpidemicRouter", activeTimes: "0", messageTTL: "300", actions: "Edit/Delete" },
+    { groupID: 'car', numHosts: 40, movementModel: "ShortestPathMapBasedMovement", routeFile: "", routeType: 0, router: "EpidemicRouter", activeTimes: "0", messageTTL: "300", actions: "Edit/Delete" },
+    { groupID: 'w', numHosts: 40, movementModel: "ShortestPathMapBasedMovement", routeFile: "", routeType: 0, router: "EpidemicRouter", activeTimes: "0", messageTTL: "300", actions: "Edit/Delete" },
+    { groupID: 't', numHosts: 2, movementModel: "MapRouteMovement", routeFile: "data/tram3.wkt", routeType: 1, router: "EpidemicRouter", activeTimes: "0", messageTTL: "300", actions: "Edit/Delete" },
+    { groupID: 't', numHosts: 2, movementModel: "MapRouteMovement", routeFile: "data/tram4.wkt", routeType: 2, router: "EpidemicRouter", activeTimes: "0", messageTTL: "300", actions: "Edit/Delete" },
+    { groupID: 't', numHosts: 2, movementModel: "MapRouteMovement", routeFile: "data/tram10.wkt", routeType: 2, router: "EpidemicRouter", activeTimes: "0", messageTTL: "300", actions: "Edit/Delete" }
 ];
 
 // ============================================================================
@@ -329,12 +344,13 @@ function editInterfaceSetting(setting) {
 }
 
 
-// Array to store events
+// Array to store events (pre-populated with default MessageEventGenerator)
+// Note: 'hosts' field is overridden at save/run time with auto-calculated total host count
 const events = [{
     eventClass: 'MessageEventGenerator',
-    interval: `${25}, ${35}`,
-    size: `${500}k, ${1}M`,
-    hosts: `${0} , ${126}`,
+    interval: '25,35',
+    size: '500k,1M',
+    hosts: '0,125',
     prefix: 'M'
 }];
 let table = document.getElementById('eventList').getElementsByTagName('tbody')[0];
@@ -908,23 +924,54 @@ const removeReport = (index) => {
     renderReports(); // Re-render the table
 };
 
-// Event listener for the "Browse" button
+// Event listener for the "Browse" button - uses DirectoryBrowser for real filesystem paths
 browseDirButton.addEventListener("click", () => {
-    const fileInput = document.createElement("input");
-    fileInput.type = "file";
-    fileInput.webkitdirectory = true; // Allow directory selection
-    fileInput.addEventListener("change", (event) => {
-        if (event.target.files.length > 0) {
-            // Extract the directory path from the selected file
-            const directoryPath = event.target.files[0].webkitRelativePath.split("/")[0];
-            reportDirInput.value = directoryPath + "/"; // Update the input field
-            reportDirectory = directoryPath + "/"; // Update the global directory variable
-            alert(`Report Directory set to: ${reportDirectory}`);
-        } else {
-            alert("No directory selected.");
+    // Create modal overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'dirBrowserOverlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
+
+    const modal = document.createElement('div');
+    modal.style.cssText = 'background:white;border-radius:12px;padding:24px;width:700px;max-height:80vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;';
+    header.innerHTML = '<h3 style="margin:0;color:#1f2937;">Select Report Directory</h3>';
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'background:none;border:none;font-size:20px;cursor:pointer;color:#6b7280;';
+    closeBtn.addEventListener('click', () => overlay.remove());
+    header.appendChild(closeBtn);
+    modal.appendChild(header);
+
+    const browserContainer = document.createElement('div');
+    browserContainer.id = 'reportDirBrowserContainer';
+    modal.appendChild(browserContainer);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // Close on overlay click (outside modal)
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.remove();
+    });
+
+    // Initialize DirectoryBrowser with callback
+    const browser = new DirectoryBrowser('reportDirBrowserContainer', {
+        initialPath: reportDirectory || '',
+        filterType: 'dirs',
+        onSelectPath: (selectedPath) => {
+            // Ensure path ends with separator
+            const normalizedPath = selectedPath.endsWith('/') || selectedPath.endsWith('\\')
+                ? selectedPath : selectedPath + '/';
+            reportDirInput.value = normalizedPath;
+            reportDirectory = normalizedPath;
+            // Also sync the analysis report dir hidden field
+            const analysisReportDir = document.getElementById('analysisReportDir');
+            if (analysisReportDir) analysisReportDir.value = normalizedPath;
+            overlay.remove();
+            showSaveStatus(`Report directory set to: ${normalizedPath}`, true);
         }
     });
-    fileInput.click();
 });
 
 // Event listener for the "Add Report" button
@@ -936,8 +983,9 @@ reportWarmupInput.addEventListener("change", (event) => {
 });
 
 // Example: Preload default reports
-reports.push("ContactTimesReport");
+// Example: Preload default reports
 reports.push("MessageStatsReport");
+reports.push("ContactTimesReport");
 renderReports();
 
 
@@ -956,7 +1004,9 @@ function openTab(evt, tabName) {
         tablinks[i].className = tablinks[i].className.replace(" active", "");
     }
     document.getElementById(tabName).style.display = "block";
-    evt.currentTarget.className += " active";
+    if (evt && evt.currentTarget) {
+        evt.currentTarget.className += " active";
+    }
 }
 let batchNum;
 // Function to generate and download the settings file based on the tab
@@ -1036,10 +1086,9 @@ ${interfaceName}.transmitRange = ${transmitRange}
 
     // Handle buffer size - support multiple values like "5M; 10M; 20M"
     let CommoNbufferSize = document.getElementById("commonBufferSize").value;
-    let bufferLen = 1;
+    let bufferLen = calculateBatchSize(CommoNbufferSize);
     if (CommoNbufferSize.includes(";")) {
         CommoNbufferSize = `[${CommoNbufferSize}]`;
-        bufferLen = ((CommoNbufferSize.match(/;/g) || []).length) + 1;
     }
     const commonRouteFile = document.getElementById("commonRouteFile");
     const CommoNwaitTime = document.getElementById("commonWaitTime").value;
@@ -1070,7 +1119,7 @@ ${interfaceName}.transmitRange = ${transmitRange}
         alert("Message TTL should be a list of integers separated by semicolon and space. For example: 1; 2; 3; 4; 5");
     }
 
-    TTLLen = ((CommoNmsgTtl.match(/;/g) || []).length) + 1;
+    TTLLen = calculateBatchSize(CommoNmsgTtl);
 
     content += `
 Scenario.nrofHostGroups = ${document.getElementById("groupList").getElementsByTagName("tbody")[0].rows.length}
@@ -1081,7 +1130,7 @@ Scenario.nrofHostGroups = ${document.getElementById("groupList").getElementsByTa
 Group.movementModel = ${CommoNmovementModel}
 Group.router = ${CommoNrouter}
 Group.bufferSize = ${CommoNbufferSize}`
-    if (commonRouteFile.value != '') {
+    if (commonRouteFile && commonRouteFile.value && commonRouteFile.value != '') {
         content += `
 Group.routeFile = ${commonRouteFile.value}
    `
@@ -1148,7 +1197,7 @@ Group.pois = ${poiString}
 
         content += `
 Group${serial}.groupID = ${groupID}
-Group${serial}.numHosts = ${numHosts}
+Group${serial}.nrofHosts = ${numHosts}
 Group${serial}.movementModel = ${movementModel}
 `
         if (route != '') {
@@ -1166,7 +1215,7 @@ Group${serial}.routeType = ${routeType}
 `
         }
         content += `
-Group${serial}.messageTTL = ${messageTTL}
+Group${serial}.msgTtl = ${messageTTL}
 `
         if (activeTimes != '0') {
             content += `
@@ -1177,18 +1226,30 @@ Group${serial}.messageTTL = ${messageTTL}
 
         serial++;
     }
-    // Event
+    // Event - auto-calculate total hosts from group table
+    let totalHosts = 0;
+    const groupTableRowsForEvents = document.getElementById("groupList").getElementsByTagName("tbody")[0].rows;
+    for (let row of groupTableRowsForEvents) {
+        totalHosts += parseInt(row.cells[1].innerText) || 0;
+    }
+    if (totalHosts === 0) {
+        totalHosts = parseInt(CommoNnumHosts) || 40;
+    }
+
     content += `
 ## Event settings
 Events.nrof = ${events.length}`
     let count = 1;
     for (let row of events) {
 
+        // Use auto-calculated host range instead of user-typed value
+        const eventHosts = `0,${totalHosts - 1}`;
+
         content += `
 Events${count}.class = ${row['eventClass']}
 Events${count}.interval =${row['interval']}
 Events${count}.size =${row['size']}
-Events${count}.hosts = ${row['hosts']}
+Events${count}.hosts = ${eventHosts}
 Events${count}.prefix = ${row['prefix']}
     `;
         count++;
@@ -1255,12 +1316,12 @@ Report.reportDir = ${reportDirectory}
         content += `Report.report${index + 1} = ${reportClass}\n`;
     });
     //Router&Optimization Tab
-    // Retrieve values from the form
-    const prophetRouterTimeUnit = document.getElementById('prophetRouterTimeUnit').value;
-    const sprayAndWaitCopies = document.getElementById('sprayAndWaitCopies').value;
-    const sprayAndWaitBinaryMode = document.getElementById('sprayAndWaitBinaryMode').checked;
-    const optimizationCellSizeMult = document.getElementById('optimizationCellSizeMult').value;
-    const optimizationRandomizeUpdateOrder = document.getElementById('optimizationRandomizeUpdateOrder').checked;
+    // Retrieve values from the form (safe fallbacks for elements that may not exist)
+    const prophetRouterTimeUnit = document.getElementById('prophetRouterTimeUnit')?.value || '30';
+    const sprayAndWaitCopies = document.getElementById('sprayAndWaitCopies')?.value || '6';
+    const sprayAndWaitBinaryMode = document.getElementById('sprayAndWaitBinaryMode')?.checked ?? true;
+    const optimizationCellSizeMult = document.getElementById('optimizationCellSizeMult')?.value || '5';
+    const optimizationRandomizeUpdateOrder = document.getElementById('optimizationRandomizeUpdateOrder')?.checked ?? true;
 
     content += `
 ## Default settings for some routers settings
@@ -1274,18 +1335,16 @@ Optimization.cellSizeMult = ${optimizationCellSizeMult}
 Optimization.randomizeUpdateOrder = ${optimizationRandomizeUpdateOrder}
         `;
 
-    // GUI Tab
+    // GUI Tab (safe fallbacks for elements that may not exist)
 
-    const underlayImageOffset = document.getElementById('underlayImageOffset').value;
-    const underlayImageScale = document.getElementById('underlayImageScale').value;
-    const underlayImageRotate = document.getElementById('underlayImageRotate').value;
-    const eventLogPanelNrofEvents = document.getElementById('eventLogPanelNrofEvents').value;
+    const underlayImageOffset = document.getElementById('underlayImageOffset')?.value || '64, 20';
+    const underlayImageScale = document.getElementById('underlayImageScale')?.value || '4.75';
+    const underlayImageRotate = document.getElementById('underlayImageRotate')?.value || '-0.015';
+    const eventLogPanelNrofEvents = document.getElementById('eventLogPanelNrofEvents')?.value || '100';
     const fileInput = document.getElementById('underlayImageFileName');
     let file = 'helsinki_underlay.png';
-    if (fileInput.value) {
-
+    if (fileInput && fileInput.value && fileInput.files && fileInput.files[0]) {
         file = fileInput.files[0].name;
-
     }
 
     content += `
@@ -1408,6 +1467,7 @@ function collectAnalysisConfig() {
     });
 
     return {
+        scenario_name: document.getElementById('scenarioName')?.value || 'default_scenario',
         directories: {
             report_dir: document.getElementById('analysisReportDir')?.value || 'reportQP',
             plots_dir: document.getElementById('analysisPlotsDir')?.value || 'plots'
@@ -1507,15 +1567,28 @@ function collectBatchConfig() {
                 }
             }
 
+            // Auto-generate output_template
+            let templateParts = ['{report_type}'];
+            groupByArray.forEach(field => {
+                if (field !== 'report_type') {
+                    templateParts.push(`{${field}}`);
+                }
+            });
+            const safeName = nameInput.value.trim() || 'average';
+            templateParts.push(`${safeName}.txt`);
+            const outputTemplate = templateParts.join('_');
+
             averageGroups.push({
-                name: nameInput.value.trim(),
+                name: safeName,
                 group_by: groupByArray,
-                min_files: parseInt(minFilesInput?.value) || 2
+                min_files: parseInt(minFilesInput?.value) || 2,
+                output_template: outputTemplate
             });
         }
     });
 
     return {
+        scenario_name: document.getElementById('scenarioName')?.value || 'default_scenario',
         folder: document.getElementById('batchFolder')?.value || 'reportQP',
         file_filter: {
             extension: document.getElementById('batchExtension')?.value || '.txt'
@@ -1627,197 +1700,203 @@ function collectRegressionConfig() {
 
 
 function saveDefaultSettings() {
-    console.log("Download Settings triggered");
+    console.log("Save Default Settings triggered");
     let content = '';
 
-    // Collect all tabs' data
+    // ============================================================
+    // Dynamically build settings from current GUI form values
+    // (mirrors saveAllSettings logic, uses PatternBuilder for Scenario.name)
+    // ============================================================
+
     // Scenario Tab
-    content += `
-#
+    let name = document.getElementById("scenarioName").value;
+    // Build Scenario.name dynamically from Pattern Builder
+    let scenarioNameTemplate;
+    if (window.patternBuilder && window.patternBuilder.patternNames.length > 0) {
+        scenarioNameTemplate = window.patternBuilder.getScenarioNameTemplate(name);
+    } else {
+        // Fallback: basic template without pattern builder
+        scenarioNameTemplate = `${name}_%%Group.router%%_%%MovementModel.rngSeed%%_%%Group.msgTtl%%`;
+    }
+
+    content += `#
 # Default settings for the simulation
 #
 
 ## Scenario settings
-Scenario.name = default_scenario
-Scenario.simulateConnections = true
-Scenario.updateInterval = 0.1
-# 43200s == 12h
-Scenario.endTime = 10000000
-Scenario.endTime = 43200
-
-## Interface-specific settings:
-# type : which interface class the interface belongs to
-# For different types, the sub-parameters are interface-specific
-# For SimpleBroadcastInterface, the parameters are:
-# transmitSpeed : transmit speed of the interface (bytes per second) 
-# transmitRange : range of the interface (meters)
-
-# "Bluetooth" interface for all nodes
-btInterface.type = SimpleBroadcastInterface
-# Transmit speed of 2 Mbps = 250kBps
-btInterface.transmitSpeed = 250k
-btInterface.transmitRange = 10
-
-# High speed, long range, interface for group 4
-highspeedInterface.type = SimpleBroadcastInterface
-highspeedInterface.transmitSpeed = 10M
-highspeedInterface.transmitRange = 10
-
-# Define 6 different node groups
-Scenario.nrofHostGroups = 6
-
-## Group-specific settings:
-# groupID : Group's identifier. Used as the prefix of host names
-# nrofHosts: number of hosts in the group
-# movementModel: movement model of the hosts (valid class name from movement package)
-# waitTime: minimum and maximum wait times (seconds) after reaching destination
-# speed: minimum and maximum speeds (m/s) when moving on a path
-# bufferSize: size of the message buffer (bytes)
-# router: router used to route messages (valid class name from routing package)
-# activeTimes: Time intervals when the nodes in the group are active (start1, end1, start2, end2, ...)
-# msgTtl : TTL (minutes) of the messages created by this host group, default=infinite
-
-## Group and movement model specific settings
-# pois: Points Of Interest indexes and probabilities (poiIndex1, poiProb1, poiIndex2, poiProb2, ... )
-#       for ShortestPathMapBasedMovement
-# okMaps : which map nodes are OK for the group (map file indexes), default=all 
-#          for all MapBasedMovent models
-# routeFile: route's file path - for MapRouteMovement
-# routeType: route's type - for MapRouteMovement
-
-
-# Common settings for all groups
-Group.movementModel = ShortestPathMapBasedMovement
-Group.router = EpidemicRouter
-Group.bufferSize = 5M
-Group.waitTime = 0, 120
-# All nodes have the bluetooth interface
-Group.nrofInterfaces = 1
-Group.interface1 = btInterface
-# Walking speeds
-Group.speed = 0.5, 1.5
-# Message TTL of 300 minutes (5 hours)
-Group.msgTtl = 300
-
-Group.nrofHosts = 40
-
-# group1 (pedestrians) specific settings
-Group1.groupID = p
-
-# group2 specific settings
-Group2.groupID = c
-# cars can drive only on roads
-Group2.okMaps = 1
-# 10-50 km/h
-Group2.speed = 2.7, 13.9
-
-# another group of pedestrians
-Group3.groupID = w
-
-# The Tram groups
-Group4.groupID = t
-Group4.bufferSize = 50M
-Group4.movementModel = MapRouteMovement
-Group4.routeFile = data/tram3.wkt
-Group4.routeType = 1
-Group4.waitTime = 10, 30
-Group4.speed = 7, 10
-Group4.nrofHosts = 2
-Group4.nrofInterfaces = 2
-Group4.interface1 = btInterface
-Group4.interface2 = highspeedInterface
-
-Group5.groupID = t
-Group5.bufferSize = 50M
-Group5.movementModel = MapRouteMovement
-Group5.routeFile = data/tram4.wkt
-Group5.routeType = 2
-Group5.waitTime = 10, 30
-Group5.speed = 7, 10
-Group5.nrofHosts = 2
-
-Group6.groupID = t
-Group6.bufferSize = 50M
-Group6.movementModel = MapRouteMovement
-Group6.routeFile = data/tram10.wkt
-Group6.routeType = 2
-Group6.waitTime = 10, 30
-Group6.speed = 7, 10
-Group6.nrofHosts = 2
-
-
-## Message creation parameters 
-# How many event generators
-Events.nrof = 1
-# Class of the first event generator
-Events1.class = MessageEventGenerator
-# (following settings are specific for the MessageEventGenerator class)
-# Creation interval in seconds (one new message every 25 to 35 seconds)
-Events1.interval = 25,35
-# Message sizes (500kB - 1MB)
-Events1.size = 500k,1M
-# range of message source/destination addresses
-Events1.hosts = 0,125
-# Message ID prefix
-Events1.prefix = M
-
-
-## Movement model settings
-# seed for movement models' pseudo random number generator (default = 0)
-MovementModel.rngSeed = 1
-# World's size for Movement Models without implicit size (width, height; meters)
-MovementModel.worldSize = 4500, 3400
-# How long time to move hosts in the world before real simulation
-MovementModel.warmup = 1000
-
-## Map based movement -movement model specific settings
-MapBasedMovement.nrofMapFiles = 4
-
-MapBasedMovement.mapFile1 = data/roads.wkt
-MapBasedMovement.mapFile2 = data/main_roads.wkt
-MapBasedMovement.mapFile3 = data/pedestrian_paths.wkt
-MapBasedMovement.mapFile4 = data/shops.wkt
-
-## Reports - all report names have to be valid report classes
-
-# how many reports to load
-Report.nrofReports = 2
-# length of the warm up period (simulated seconds)
-Report.warmup = 0
-# default directory of reports (can be overridden per Report with output setting)
-Report.reportDir = reports/
-# Report classes to load
-Report.report1 = ContactTimesReport
-Report.report2 = ConnectivityONEReport
-
-## Default settings for some routers settings
-ProphetRouter.secondsInTimeUnit = 30
-SprayAndWaitRouter.nrofCopies = 6
-SprayAndWaitRouter.binaryMode = true
-
-## Optimization settings -- these affect the speed of the simulation
-## see World class for details.
-Optimization.cellSizeMult = 5
-Optimization.randomizeUpdateOrder = true
-
-
-## GUI settings
-
-# GUI underlay image settings
-GUI.UnderlayImage.fileName = data/helsinki_underlay.png
-# Image offset in pixels (x, y)
-GUI.UnderlayImage.offset = 64, 20
-# Scaling factor for the image
-GUI.UnderlayImage.scale = 4.75
-# Image rotation (radians)
-GUI.UnderlayImage.rotate = -0.015
-
-# how many events to show in the log panel (default = 30)
-GUI.EventLogPanel.nrofEvents = 100
-# Regular Expression log filter (see Pattern-class from the Java API for RE-matching details)
-#GUI.EventLogPanel.REfilter = .*p[1-9]<->p[1-9]$
+Scenario.name = ${scenarioNameTemplate}
+Scenario.simulateConnections = ${document.getElementById("simulateConnections").checked ? "true" : "false"}
+Scenario.updateInterval = ${document.getElementById("updateInterval").value}
+Scenario.endTime = ${document.getElementById("endTime").value}
 `;
 
+    // Interface Table Data
+    content += `\n## Interface-specific settings:\n`;
+    const interfaceTableRows = document.getElementById("interfaceList").getElementsByTagName("tbody")[0].rows;
+    for (let row of interfaceTableRows) {
+        const interfaceName = row.cells[0].innerText;
+        const interfaceType = row.cells[1].innerText;
+        const transmitSpeed = row.cells[2].innerText;
+        const transmitRange = row.cells[3].innerText;
+        content += `\n${interfaceName}.type = ${interfaceType}\n`;
+        content += `${interfaceName}.transmitSpeed = ${transmitSpeed}\n`;
+        content += `${interfaceName}.transmitRange = ${transmitRange}\n`;
+    }
+
+    // Common group settings
+    const CommoNmovementModel = document.getElementById("commonMovementModel").value;
+    const tagifyInput = document.getElementById("commonRouter");
+    let CommoNrouter;
+    try {
+        const tagifyValue = JSON.parse(tagifyInput.value);
+        CommoNrouter = tagifyValue.map(tag => tag.value).join("; ");
+    } catch (e) {
+        CommoNrouter = tagifyInput.value || 'EpidemicRouter';
+    }
+    const CommoNbufferSize = document.getElementById("commonBufferSize").value;
+    const CommoNwaitTime = document.getElementById("commonWaitTime").value;
+    const CommoNspeed = document.getElementById("commonSpeed").value;
+    const CommoNmsgTtl = document.getElementById("commonTtl").value;
+    const CommoNnumHosts = document.getElementById("commonNumberOfHost").value;
+
+    // Handle multi-interface selection
+    let interfaces = ['btInterface'];
+    const interfaceInput = document.getElementById("commonInterface");
+    if (interfaceInput && interfaceInput.value) {
+        try {
+            const interfaceTagifyValue = JSON.parse(interfaceInput.value);
+            if (Array.isArray(interfaceTagifyValue) && interfaceTagifyValue.length > 0) {
+                interfaces = interfaceTagifyValue.map(tag => tag.value);
+            }
+        } catch (e) {
+            interfaces = [interfaceInput.value];
+        }
+    }
+
+    const groupTableRows = document.getElementById("groupList").getElementsByTagName("tbody")[0].rows;
+    content += `\nScenario.nrofHostGroups = ${groupTableRows.length}\n`;
+
+    content += `\n## Common settings for all groups\n`;
+    content += `Group.movementModel = ${CommoNmovementModel}\n`;
+    content += `Group.router = ${CommoNrouter}\n`;
+    content += `Group.bufferSize = ${CommoNbufferSize}\n`;
+    const commonRouteFile = document.getElementById("commonRouteFile");
+    if (commonRouteFile && commonRouteFile.value) {
+        content += `Group.routeFile = ${commonRouteFile.value}\n`;
+    }
+    content += `Group.waitTime = ${CommoNwaitTime}\n`;
+    content += `Group.nrofInterfaces = ${interfaces.length}\n`;
+    interfaces.forEach((iface, idx) => {
+        content += `Group.interface${idx + 1} = ${iface}\n`;
+    });
+    content += `Group.speed = ${CommoNspeed}\n`;
+    content += `Group.msgTtl = ${CommoNmsgTtl}\n`;
+    content += `Group.nrofHosts = ${CommoNnumHosts}\n`;
+
+    // Group Table Data
+    let serial = 1;
+    for (let row of groupTableRows) {
+        const groupID = row.cells[0].innerText;
+        const numHosts = row.cells[1].innerText;
+        const movementModel = row.cells[2].innerText;
+        const route = row.cells[3].innerText;
+        const routeType = row.cells[4].innerText;
+        const router = row.cells[5].innerText;
+        const activeTimes = row.cells[6].innerText;
+        const messageTTL = row.cells[7].innerText;
+
+        content += `\nGroup${serial}.groupID = ${groupID}\n`;
+        content += `Group${serial}.nrofHosts = ${numHosts}\n`;
+        content += `Group${serial}.movementModel = ${movementModel}\n`;
+        if (route) {
+            content += `Group${serial}.routeFile = ${route}\n`;
+        }
+        content += `Group${serial}.router = ${router}\n`;
+        if (routeType) {
+            content += `Group${serial}.routeType = ${routeType}\n`;
+        }
+        content += `Group${serial}.msgTtl = ${messageTTL}\n`;
+        if (activeTimes && activeTimes !== '0') {
+            content += `Group${serial}.activeTimes = ${activeTimes}\n`;
+        }
+        serial++;
+    }
+
+    // Event settings
+    content += `\n## Event settings\n`;
+    content += `Events.nrof = ${events.length}\n`;
+    let count = 1;
+    for (let row of events) {
+        content += `Events${count}.class = ${row['eventClass']}\n`;
+        content += `Events${count}.interval = ${row['interval']}\n`;
+        content += `Events${count}.size = ${row['size']}\n`;
+        content += `Events${count}.hosts = ${row['hosts']}\n`;
+        content += `Events${count}.prefix = ${row['prefix']}\n`;
+        count++;
+    }
+
+    // Movement model settings
+    const rngSeed = document.getElementById("rngSeed").value || "1";
+    const worldSize = document.getElementById("worldSize").value || "4500, 3400";
+    const warmupTime = document.getElementById("warmup").value || "1000";
+    content += `\n## Movement model settings\n`;
+    content += `MovementModel.rngSeed = ${rngSeed}\n`;
+    content += `MovementModel.worldSize = ${worldSize}\n`;
+    content += `MovementModel.warmup = ${warmupTime}\n`;
+
+    // Map Files
+    const fileList = document.getElementById("fileList").children;
+    content += `\n## Map based movement settings\n`;
+    content += `MapBasedMovement.nrofMapFiles = ${fileList.length}\n`;
+    if (fileList.length > 0) {
+        let mapFileIndex = 1;
+        for (let fileItem of fileList) {
+            const fileName = fileItem.textContent.trim();
+            content += `MapBasedMovement.mapFile${mapFileIndex} = data/${fileName}\n`;
+            mapFileIndex++;
+        }
+    }
+
+    // Reports
+    content += `\n## Reports\n`;
+    content += `Report.nrofReports = ${reports.length}\n`;
+    content += `Report.warmup = ${reportWarmup}\n`;
+    content += `Report.reportDir = ${reportDirectory}\n`;
+    reports.forEach((reportClass, index) => {
+        content += `Report.report${index + 1} = ${reportClass}\n`;
+    });
+
+    // Router & Optimization settings (use safe fallbacks - these elements may not exist in UI yet)
+    const prophetRouterTimeUnit = document.getElementById('prophetRouterTimeUnit')?.value || '30';
+    const sprayAndWaitCopies = document.getElementById('sprayAndWaitCopies')?.value || '6';
+    const sprayAndWaitBinaryMode = document.getElementById('sprayAndWaitBinaryMode')?.checked ?? true;
+    const optimizationCellSizeMult = document.getElementById('optimizationCellSizeMult')?.value || '5';
+    const optimizationRandomizeUpdateOrder = document.getElementById('optimizationRandomizeUpdateOrder')?.checked ?? true;
+
+    content += `\n## Default settings for some routers\n`;
+    content += `ProphetRouter.secondsInTimeUnit = ${prophetRouterTimeUnit}\n`;
+    content += `SprayAndWaitRouter.nrofCopies = ${sprayAndWaitCopies}\n`;
+    content += `SprayAndWaitRouter.binaryMode = ${sprayAndWaitBinaryMode}\n`;
+    content += `\n## Optimization settings\n`;
+    content += `Optimization.cellSizeMult = ${optimizationCellSizeMult}\n`;
+    content += `Optimization.randomizeUpdateOrder = ${optimizationRandomizeUpdateOrder}\n`;
+
+    // GUI settings (use safe fallbacks - these elements may not exist in UI yet)
+    const underlayImageOffset = document.getElementById('underlayImageOffset')?.value || '64, 20';
+    const underlayImageScale = document.getElementById('underlayImageScale')?.value || '4.75';
+    const underlayImageRotate = document.getElementById('underlayImageRotate')?.value || '-0.015';
+    const eventLogPanelNrofEvents = document.getElementById('eventLogPanelNrofEvents')?.value || '100';
+    const fileInput = document.getElementById('underlayImageFileName');
+    let file = 'helsinki_underlay.png';
+    if (fileInput && fileInput.value && fileInput.files && fileInput.files[0]) {
+        file = fileInput.files[0].name;
+    }
+    content += `\n## GUI settings\n`;
+    content += `GUI.UnderlayImage.fileName = ${'data/' + file}\n`;
+    content += `GUI.UnderlayImage.offset = ${underlayImageOffset}\n`;
+    content += `GUI.UnderlayImage.scale = ${underlayImageScale}\n`;
+    content += `GUI.UnderlayImage.rotate = ${underlayImageRotate}\n`;
+    content += `GUI.EventLogPanel.nrofEvents = ${eventLogPanelNrofEvents}\n`;
 
     // Save to server instead of browser download
     fetch('/api/save-settings', {
@@ -1865,7 +1944,7 @@ function runONE() {
     );
 
     const compile = document.getElementById("compile").checked;
-    const enableML = document.getElementById("enableMachineLearning")?.checked || false;
+    const enableML = document.getElementById("enableML")?.checked || false;
 
     // ============================================================
     // STEP 1: Collect simulation settings (same as saveAllSettings)
@@ -1930,8 +2009,8 @@ ${interfaceName}.transmitRange = ${transmitRange}
     const CommoNrouter = `[${tagifyValue.map(tag => tag.value).join("; ")}]`;
     // routerCount already computed above for batch mode detection
     let CommoNbufferSize = document.getElementById("commonBufferSize").value;
-    // Handle buffer size batch mode (wrap with brackets if semicolons present)
-    let bufferLen = (CommoNbufferSize.match(/;/g) || []).length + 1;
+    // Handle buffer size batch mode
+    let bufferLen = calculateBatchSize(CommoNbufferSize);
     if (CommoNbufferSize.includes(";")) {
         CommoNbufferSize = `[${CommoNbufferSize}]`;
     }
@@ -1959,7 +2038,7 @@ ${interfaceName}.transmitRange = ${transmitRange}
     if (CommoNmsgTtl.includes(";")) {
         CommoNmsgTtl = `[${CommoNmsgTtl}]`;
     }
-    TTLLen = ((CommoNmsgTtl.match(/;/g) || []).length) + 1;
+    TTLLen = calculateBatchSize(CommoNmsgTtl);
 
     content += `
 Scenario.nrofHostGroups = ${document.getElementById("groupList").getElementsByTagName("tbody")[0].rows.length}
@@ -1969,7 +2048,7 @@ Scenario.nrofHostGroups = ${document.getElementById("groupList").getElementsByTa
 Group.movementModel = ${CommoNmovementModel}
 Group.router = ${CommoNrouter}
 Group.bufferSize = ${CommoNbufferSize}`;
-    if (commonRouteFile.value != '') {
+    if (commonRouteFile && commonRouteFile.value && commonRouteFile.value != '') {
         content += `
 Group.routeFile = ${commonRouteFile.value}
    `
@@ -2034,7 +2113,7 @@ Group.pois = ${poiString}
 
         content += `
 Group${serial}.groupID = ${groupID}
-Group${serial}.numHosts = ${numHosts}
+Group${serial}.nrofHosts = ${numHosts}
 Group${serial}.movementModel = ${movementModel}
 `
         if (route != '') {
@@ -2052,7 +2131,7 @@ Group${serial}.routeType = ${routeType}
 `
         }
         content += `
-Group${serial}.messageTTL = ${messageTTL}
+Group${serial}.msgTtl = ${messageTTL}
 `
         if (activeTimes != '0') {
             content += `
@@ -2063,17 +2142,30 @@ Group${serial}.messageTTL = ${messageTTL}
         serial++;
     }
 
-    // Event settings
+    // Event settings - auto-calculate total hosts from group table
+    let totalHostsForEvents = 0;
+    const groupTableRowsForEvents = document.getElementById("groupList").getElementsByTagName("tbody")[0].rows;
+    for (let row of groupTableRowsForEvents) {
+        totalHostsForEvents += parseInt(row.cells[1].innerText) || 0;
+    }
+    if (totalHostsForEvents === 0) {
+        totalHostsForEvents = parseInt(CommoNnumHosts) || 40;
+    }
+
     content += `
 ## Event settings
 Events.nrof = ${events.length}`
     let count = 1;
     for (let row of events) {
+
+        // Use auto-calculated host range instead of user-typed value
+        const eventHosts = `0,${totalHostsForEvents - 1}`;
+
         content += `
 Events${count}.class = ${row['eventClass']}
 Events${count}.interval =${row['interval']}
 Events${count}.size =${row['size']}
-Events${count}.hosts = ${row['hosts']}
+Events${count}.hosts = ${eventHosts}
 Events${count}.prefix = ${row['prefix']}
     `;
         count++;
@@ -2084,7 +2176,7 @@ Events${count}.prefix = ${row['prefix']}
     if (rngSeed.includes(";")) {
         rngSeed = `[${rngSeed}]`;
     }
-    let rngSeedLen = ((rngSeed.match(/;/g) || []).length) + 1;
+    let rngSeedLen = calculateBatchSize(rngSeed);
 
     // Calculate batch number (routers × seeds × TTLs × buffers)
     batchNum = routerCount * rngSeedLen * TTLLen * bufferLen;
@@ -2136,12 +2228,12 @@ Report.reportDir = ${reportDirectory}
         content += `Report.report${index + 1} = ${reportClass}\n`;
     });
 
-    // Router & Optimization Tab
-    const prophetRouterTimeUnit = document.getElementById('prophetRouterTimeUnit').value;
-    const sprayAndWaitCopies = document.getElementById('sprayAndWaitCopies').value;
-    const sprayAndWaitBinaryMode = document.getElementById('sprayAndWaitBinaryMode').checked;
-    const optimizationCellSizeMult = document.getElementById('optimizationCellSizeMult').value;
-    const optimizationRandomizeUpdateOrder = document.getElementById('optimizationRandomizeUpdateOrder').checked;
+    // Router & Optimization Tab (safe fallbacks for elements that may not exist)
+    const prophetRouterTimeUnit = document.getElementById('prophetRouterTimeUnit')?.value || '30';
+    const sprayAndWaitCopies = document.getElementById('sprayAndWaitCopies')?.value || '6';
+    const sprayAndWaitBinaryMode = document.getElementById('sprayAndWaitBinaryMode')?.checked ?? true;
+    const optimizationCellSizeMult = document.getElementById('optimizationCellSizeMult')?.value || '5';
+    const optimizationRandomizeUpdateOrder = document.getElementById('optimizationRandomizeUpdateOrder')?.checked ?? true;
 
     content += `
 ## Default settings for some routers settings
@@ -2155,14 +2247,14 @@ Optimization.cellSizeMult = ${optimizationCellSizeMult}
 Optimization.randomizeUpdateOrder = ${optimizationRandomizeUpdateOrder}
         `;
 
-    // GUI Tab
-    const underlayImageOffset = document.getElementById('underlayImageOffset').value;
-    const underlayImageScale = document.getElementById('underlayImageScale').value;
-    const underlayImageRotate = document.getElementById('underlayImageRotate').value;
-    const eventLogPanelNrofEvents = document.getElementById('eventLogPanelNrofEvents').value;
+    // GUI Tab (safe fallbacks for elements that may not exist)
+    const underlayImageOffset = document.getElementById('underlayImageOffset')?.value || '64, 20';
+    const underlayImageScale = document.getElementById('underlayImageScale')?.value || '4.75';
+    const underlayImageRotate = document.getElementById('underlayImageRotate')?.value || '-0.015';
+    const eventLogPanelNrofEvents = document.getElementById('eventLogPanelNrofEvents')?.value || '100';
     const fileInput = document.getElementById('underlayImageFileName');
     let file = 'helsinki_underlay.png';
-    if (fileInput.value) {
+    if (fileInput && fileInput.value && fileInput.files && fileInput.files[0]) {
         file = fileInput.files[0].name;
     }
 
@@ -3000,7 +3092,7 @@ function saveBatchConfigSilent() {
             config.file_filter = config.file_filter || {};
             config.file_filter.extension = document.getElementById('batchExtension')?.value || '.txt';
             config.filename_pattern = config.filename_pattern || {};
-            config.filename_pattern.delimiter = document.getElementById('batchDelimiter')?.value || '_';
+            config.filename_pattern.delimiter = window.patternBuilder?.delimiter || '_';
             // Sync full pattern components from PatternBuilder
             if (window.patternBuilder && window.patternBuilder.patternNames.length > 0) {
                 const components = {};
@@ -3279,7 +3371,7 @@ function loadBatchConfig() {
 }
 
 function saveBatchConfig() {
-    fetch('/api/config/batch')
+    fetch('/api/config/averager')
         .then(response => response.json())
         .then(config => {
             config.folder = document.getElementById('batchFolder').value;
@@ -3287,20 +3379,23 @@ function saveBatchConfig() {
             config.file_filter.extension = document.getElementById('batchExtension').value;
 
             config.filename_pattern = config.filename_pattern || {};
-            config.filename_pattern.delimiter = document.getElementById('batchDelimiter').value;
+            // Use PatternBuilder delimiter (batchDelimiter element doesn't exist)
+            config.filename_pattern.delimiter = window.patternBuilder?.delimiter || '_';
 
-            // Update min_files for all groups
-            const minFiles = parseInt(document.getElementById('batchMinFiles').value) || 2;
-            if (config.average_groups) {
-                config.average_groups.forEach(group => {
-                    group.min_files = minFiles;
+            // Sync full pattern components from PatternBuilder
+            if (window.patternBuilder && window.patternBuilder.patternNames.length > 0) {
+                const components = {};
+                window.patternBuilder.patternNames.forEach((name, index) => {
+                    components[name] = index;
                 });
+                config.filename_pattern.components = components;
             }
 
+            config.data_separator = document.getElementById('batchDataSeparator')?.value || ':';
             config.output = config.output || {};
             config.output.precision = parseInt(document.getElementById('batchPrecision').value) || 4;
 
-            return fetch('/api/config/batch', {
+            return fetch('/api/config/averager', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(config)

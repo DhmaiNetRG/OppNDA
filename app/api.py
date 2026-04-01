@@ -107,7 +107,7 @@ DEFAULT_ONE_SETTINGS = {
     'num_hosts': 40,
     
     # Movement
-    'rng_seed': 1,
+    'rng_seed': '[1;5]',
     'world_size': '4500, 3400',
     'warmup': 1000,
     
@@ -117,7 +117,7 @@ DEFAULT_ONE_SETTINGS = {
     'default_reports': ['MessageStatsReport', 'ContactTimesReport'],
     
     # Map files
-    'map_files': ['roads.wkt'],
+    'map_files': ['roads.wkt', 'main_roads.wkt', 'pedestrian_paths.wkt', 'shops.wkt'],
     
     # Router-specific
     'prophet_time_unit': 30,

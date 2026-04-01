@@ -667,11 +667,11 @@ class PlotGenerator:
                 
                 print(f"  [OK] Surface: {router} {metric} ({x_label} vs {y_label})", flush=True)
             
-            return True
+            return len(routers)
         except Exception as e:
             print(f"  [FAIL] Surface plot failed: {e}")
             plt.close('all')
-            return False
+            return 0
     
     def create_violin_plot(self, job_data):
         """Create violin plot from averaged data"""
@@ -807,19 +807,19 @@ def execute_plot_job(job_info):
     
     try:
         if job_type == 'line':
-            return generator.create_line_plot(job_data)
+            return 1 if generator.create_line_plot(job_data) else 0
         elif job_type == 'surface':
-            return generator.create_surface_plot(job_data)
+            return generator.create_surface_plot(job_data)  # Returns count
         elif job_type == 'violin':
-            return generator.create_violin_plot(job_data)
+            return 1 if generator.create_violin_plot(job_data) else 0
         elif job_type == 'heatmap':
-            return generator.create_heatmap(job_data)
+            return 1 if generator.create_heatmap(job_data) else 0
         elif job_type == 'pairplot':
-            return generator.create_pairplot(job_data)
+            return 1 if generator.create_pairplot(job_data) else 0
     except Exception as e:
         print(f"Error in plot job ({job_type}): {e}")
         traceback.print_exc()
-        return False
+        return 0
 
 def main():
     # Load configuration
@@ -903,7 +903,18 @@ def main():
     print("="*70, flush=True)
     
     if plot_jobs:
-        print(f"Processing {len(plot_jobs)} plots...")
+        # Calculate expected plot count (surface plots expand to one per common router)
+        expected_count = 0
+        for job_type, job_data in plot_jobs:
+            if job_type == 'surface':
+                grouping_types, dfs, metric, settings = job_data
+                df1, df2 = dfs
+                common_routers = set(df1['router'].unique()) & set(df2['router'].unique())
+                expected_count += max(len(common_routers), 1)
+            else:
+                expected_count += 1
+        
+        print(f"Processing {expected_count} plots...")
         start_time = time.time()
         
         # Dynamic worker calculation using ResourceManager
@@ -923,8 +934,8 @@ def main():
             results = list(pool.imap_unordered(execute_plot_job, plot_jobs, chunksize=max(1, len(plot_jobs) // num_processes)))
         
         elapsed = time.time() - start_time
-        successful = sum(1 for r in results if r)
-        print(f"Completed: {successful}/{len(plot_jobs)} plots in {elapsed:.2f}s", flush=True)
+        successful = sum(r for r in results if r)
+        print(f"Completed: {successful}/{expected_count} plots in {elapsed:.2f}s", flush=True)
     
     # Export CSV from raw data
     if config['enabled_plots']['export_csv'] and raw_df is not None and 'router' in raw_df.columns:

@@ -513,7 +513,15 @@ class ReportAverager:
                     
                     # Generate output filename using this strategy's template
                     _, first_components = file_list[0]
-                    output_template = avg_config['output_template']
+                    output_template = avg_config.get('output_template')
+                    if not output_template:
+                        # Fallback heuristic: {report_type}_{group1}_{group2}_..._{name}.txt
+                        fallback_parts = ["{report_type}"]
+                        for g in group_by:
+                            if g != "report_type":
+                                fallback_parts.append(f"{{{g}}}")
+                        fallback_parts.append(f"{group_name}.txt")
+                        output_template = "_".join(fallback_parts)
                     
                     # Create substitution dict
                     subs = dict(zip(group_by, group_key))

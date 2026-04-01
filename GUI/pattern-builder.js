@@ -447,10 +447,10 @@ class PatternBuilder {
 
         const parts = [];
         for (const name of this.patternNames) {
-            if (name === 'scenario') {
+            if (name === 'scenario' || name === 'scenario_name') {
                 // 'scenario' maps to the literal scenario name prefix
                 parts.push(scenarioName);
-            } else if (name === 'reports') {
+            } else if (name === 'reports' || name === 'report_type') {
                 // 'reports' is auto-appended by ONE — skip it in the template
                 continue;
             } else if (ONE_PLACEHOLDERS[name]) {
