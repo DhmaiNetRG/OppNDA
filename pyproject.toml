@@ -8,7 +8,7 @@ requires-python = ">=3.9"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-python_files = ["test_configs.py", "test_framework.py", "test_integration.py"]
+python_files = ["test_configs.py", "test_framework.py", "test_integration.py", "test_resource_manager.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
 norecursedirs = [".git", "__pycache__", ".venv"]

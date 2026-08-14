@@ -30,6 +30,13 @@ let groupSettings = [
     { groupID: 't', numHosts: 2, movementModel: "MapRouteMovement", routeFile: "data/tram10.wkt", routeType: 2, router: "EpidemicRouter", activeTimes: "0", messageTTL: "300", actions: "Edit/Delete" }
 ];
 
+let mapFileEntries = [
+    { name: 'shops.wkt', file: null },
+    { name: 'pedestrian_paths.wkt', file: null },
+    { name: 'main_roads.wkt', file: null },
+    { name: 'roads.wkt', file: null }
+];
+
 // ============================================================================
 // QUICK START FUNCTIONS
 // ============================================================================
@@ -161,6 +168,259 @@ function updateBatchPreview() {
 // Make available globally for inline scripts in HTML
 window.updateBatchPreview = updateBatchPreview;
 
+function parseTagifyLikeValues(rawValue) {
+    if (Array.isArray(rawValue)) {
+        return rawValue
+            .map(item => (typeof item === 'object' ? item.value : item))
+            .map(item => String(item).trim())
+            .filter(Boolean);
+    }
+
+    if (typeof rawValue !== 'string') {
+        return [];
+    }
+
+    const trimmed = rawValue.trim();
+    if (!trimmed) {
+        return [];
+    }
+
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        try {
+            const parsed = JSON.parse(trimmed);
+            if (Array.isArray(parsed)) {
+                return parseTagifyLikeValues(parsed);
+            }
+        } catch (error) {
+            const inner = trimmed.slice(1, -1);
+            return inner
+                .split(/[;,]/)
+                .map(item => item.trim())
+                .filter(Boolean);
+        }
+    }
+
+    return trimmed
+        .split(/[;,]/)
+        .map(item => item.trim())
+        .filter(Boolean);
+}
+
+function getTagifyInputValues(inputOrId, fallbackValues = []) {
+    const input = typeof inputOrId === 'string'
+        ? document.getElementById(inputOrId)
+        : inputOrId;
+
+    if (!input) {
+        return [...fallbackValues];
+    }
+
+    if (input._tagify && Array.isArray(input._tagify.value) && input._tagify.value.length > 0) {
+        return input._tagify.value
+            .map(tag => String(tag.value || '').trim())
+            .filter(Boolean);
+    }
+
+    const parsed = parseTagifyLikeValues(input.value);
+    return parsed.length > 0 ? parsed : [...fallbackValues];
+}
+
+function getRouterConfigValue() {
+    const routers = getTagifyInputValues('commonRouter', ['EpidemicRouter']);
+    return `[${routers.join('; ')}]`;
+}
+
+function getNormalizedDataFileValue(inputOrId) {
+    const input = typeof inputOrId === 'string'
+        ? document.getElementById(inputOrId)
+        : inputOrId;
+
+    if (!input) {
+        return '';
+    }
+
+    let rawValue = '';
+    if (input.files && input.files[0] && input.files[0].name) {
+        rawValue = input.files[0].name;
+    } else if (typeof input.value === 'string') {
+        rawValue = input.value.trim();
+    }
+
+    if (!rawValue) {
+        return '';
+    }
+
+    const normalized = rawValue.replace(/\\/g, '/');
+    if (normalized.startsWith('data/')) {
+        return normalized;
+    }
+
+    const filenameOnly = normalized.split('/').pop();
+    return filenameOnly ? `data/${filenameOnly}` : '';
+}
+
+function getRegressionTargets() {
+    const targets = getTagifyInputValues('regressionTarget', ['delivery_prob']);
+    return targets.length > 0 ? targets : ['delivery_prob'];
+}
+
+function sanitizeFilenameBase(value, fallback = 'default_scenario') {
+    const normalized = String(value || '')
+        .trim()
+        .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+        .replace(/\s+/g, '_');
+    return normalized || fallback;
+}
+
+function postConfig(configName, payload) {
+    return fetch(`/api/config/${configName}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    }).then(response => response.json());
+}
+
+function getAssetRelativePathFromFile(file) {
+    return file && file.name ? `data/${file.name}` : '';
+}
+
+function collectDataAssetFiles() {
+    const files = [];
+    const seen = new Set();
+
+    function pushFile(file) {
+        if (!file || !file.name || seen.has(file.name)) {
+            return;
+        }
+        files.push(file);
+        seen.add(file.name);
+    }
+
+    const commonRouteInput = document.getElementById('commonRouteFile');
+    if (commonRouteInput?.files?.[0]) {
+        pushFile(commonRouteInput.files[0]);
+    }
+
+    const underlayInput = document.getElementById('underlayImageFileName');
+    if (underlayInput?.files?.[0]) {
+        pushFile(underlayInput.files[0]);
+    }
+
+    mapFileEntries.forEach(entry => pushFile(entry.file));
+    groupSettings.forEach(group => pushFile(group.routeFileUpload));
+
+    return files;
+}
+
+async function uploadDataAssetsIfNeeded() {
+    const files = collectDataAssetFiles();
+    if (files.length === 0) {
+        return { success: true, uploaded: [] };
+    }
+
+    const formData = new FormData();
+    files.forEach(file => formData.append('files', file, file.name));
+
+    const response = await fetch('/api/upload-data-files', {
+        method: 'POST',
+        body: formData
+    });
+
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to upload data assets');
+    }
+
+    return data;
+}
+
+function renderMapFileList() {
+    const fileListContainer = document.getElementById('fileList');
+    if (!fileListContainer) {
+        return;
+    }
+
+    fileListContainer.innerHTML = '';
+    mapFileEntries.forEach(entry => {
+        const listItem = document.createElement('li');
+        listItem.textContent = entry.name;
+        fileListContainer.appendChild(listItem);
+    });
+}
+
+function getMapFileNames() {
+    return mapFileEntries.map(entry => entry.name);
+}
+
+function getGroupCount() {
+    return groupSettings.length;
+}
+
+function getTotalHostsFromGroups(defaultValue = 40) {
+    const totalHosts = groupSettings.reduce((sum, group) => sum + (parseInt(group.numHosts, 10) || 0), 0);
+    return totalHosts > 0 ? totalHosts : defaultValue;
+}
+
+function buildGroupConfigBlocks() {
+    let content = '';
+
+    groupSettings.forEach((group, index) => {
+        const serial = index + 1;
+        content += `
+Group${serial}.groupID = ${group.groupID}
+Group${serial}.nrofHosts = ${group.numHosts}
+Group${serial}.movementModel = ${group.movementModel}
+`;
+
+        if (group.routeFile) {
+            content += `
+Group${serial}.routeFile = ${group.routeFile}
+`;
+        }
+
+        content += `
+Group${serial}.router = ${group.router}
+`;
+
+        if (group.routeType) {
+            content += `
+Group${serial}.routeType = ${group.routeType}
+`;
+        }
+
+        if (group.waitTime) {
+            content += `
+Group${serial}.waitTime = ${group.waitTime}
+`;
+        }
+
+        if (group.speed) {
+            content += `
+Group${serial}.speed = ${group.speed}
+`;
+        }
+
+        if (group.bufferSize) {
+            content += `
+Group${serial}.bufferSize = ${group.bufferSize}
+`;
+        }
+
+        content += `
+Group${serial}.msgTtl = ${group.messageTTL}
+`;
+
+        if (group.activeTimes && group.activeTimes !== '0') {
+            content += `
+Group${serial}.activeTimes = ${group.activeTimes}
+
+`;
+        }
+    });
+
+    return content;
+}
+
 
 // Function to populate the Interface settings table dynamically
 function populateInterfaceTable() {
@@ -254,26 +514,54 @@ function populateGroupTable() {
     });
 }
 
-// Function to remove an interface setting
-function removeInterfaceSetting(index) {
-    // Remove the item from the array
-    interfaceSettings.splice(index, 1);
+function resolveInterfaceIndex(interfaceRef) {
+    if (typeof interfaceRef === 'number' && interfaceRef >= 0) {
+        return interfaceRef;
+    }
 
-    // Re-populate the table after removal
-    populateInterfaceTable();
+    if (typeof interfaceRef === 'string') {
+        return interfaceSettings.findIndex(setting => setting.name === interfaceRef);
+    }
+
+    if (interfaceRef && typeof interfaceRef === 'object') {
+        return interfaceSettings.findIndex(setting => setting === interfaceRef || setting.name === interfaceRef.name);
+    }
+
+    return -1;
 }
 
+function removeInterfaceSetting(interfaceRef) {
+    const index = resolveInterfaceIndex(interfaceRef);
+    if (index === -1) {
+        return;
+    }
+
+    interfaceSettings.splice(index, 1);
+    populateInterfaceTable();
+    updateInterfaceTagifyWhitelist();
+}
+
+function removeInterface() {
+    interfaceSettings.length = 0;
+    populateInterfaceTable();
+    updateInterfaceTagifyWhitelist();
+}
 
 function addInterface() {
     // Get the values from the form inputs
-    const interfaceName = document.getElementById("interfaceName").value;
+    const interfaceName = document.getElementById("interfaceName").value.trim();
     const interfaceType = document.getElementById("interfaceType").value;
-    const transmitSpeed = document.getElementById("transmitSpeed").value;
-    const transmitRange = document.getElementById("transmitRange").value;
+    const transmitSpeed = document.getElementById("transmitSpeed").value.trim();
+    const transmitRange = document.getElementById("transmitRange").value.trim();
 
     // Validate the inputs
     if (!interfaceName || !interfaceType || !transmitSpeed || !transmitRange) {
         alert("Please fill out all fields before adding an interface.");
+        return;
+    }
+
+    if (interfaceSettings.some(setting => setting.name === interfaceName)) {
+        alert(`Interface "${interfaceName}" already exists.`);
         return;
     }
 
@@ -288,59 +576,26 @@ function addInterface() {
 
     // Update the Tagify whitelist for interface selection
     updateInterfaceTagifyWhitelist();
-
-    // Get the table body
-    const tableBody = document.getElementById("interfaceList").querySelector("tbody");
-
-    // Create a new row
-    const newRow = document.createElement("tr");
-
-    // Add cells to the row
-    newRow.innerHTML = `
-                <td>${interfaceName}</td>
-                <td>${interfaceType}</td>
-                <td>${transmitSpeed}</td>
-                <td>${transmitRange}</td>
-                <td>
-                    <button type="button" class="edit-button" onclick="editInterfaceSetting('${interfaceName}')">Edit</button>
-                    <button type="button" class="remove-button" onclick="removeInterfaceSetting('${interfaceName}')">Remove</button>
-                </td>
-            `;
-
-    // Append the new row to the table body
-    tableBody.appendChild(newRow);
+    populateInterfaceTable();
 
     // Clear the form inputs
     document.getElementById("newInterfaceForm").reset();
 }
 
-
-// Function to remove a group setting
-function removeInterfaceSetting(interfaceName) {
-    // Find the index of the interface in the array
-    const index = interfaceSettings.findIndex((setting) => setting.name === interfaceName);
-
-    if (index !== -1) {
-        // Remove the interface from the array
-        interfaceSettings.splice(index, 1);
-
-        // Re-populate the table
-        populateInterfaceTable();
-
-        // Update the Tagify whitelist
-        updateInterfaceTagifyWhitelist();
+function editInterfaceSetting(interfaceRef) {
+    const index = resolveInterfaceIndex(interfaceRef);
+    if (index === -1) {
+        return;
     }
-}
-// Function to edit interface settings (as an example)
-function editInterfaceSetting(setting) {
-    // Here you can prompt for new values or open a modal to edit settings
+
+    const setting = interfaceSettings[index];
     const newSpeed = prompt(`Edit Transmit Speed for ${setting.name}`, setting.transmitSpeed);
     const newRange = prompt(`Edit Transmit Range for ${setting.name}`, setting.transmitRange);
     if (newSpeed && newRange) {
-        setting.transmitSpeed = newSpeed;
-        setting.transmitRange = newRange;
+        setting.transmitSpeed = newSpeed.trim();
+        setting.transmitRange = newRange.trim();
     }
-    populateInterfaceTable();  // Update the table with new values
+    populateInterfaceTable();
 }
 
 
@@ -377,6 +632,12 @@ deleteButton.onclick = function () {
     events.splice(index, 1);
 };
 actionCell.appendChild(deleteButton);
+
+function removeAllEvents() {
+    events.length = 0;
+    const eventTableBody = document.getElementById('eventList').getElementsByTagName('tbody')[0];
+    eventTableBody.innerHTML = '';
+}
 document.getElementById('newEventForm').addEventListener('submit', function (event) {
     event.preventDefault();
 
@@ -438,7 +699,7 @@ document.getElementById("newGroupForm").addEventListener("submit", function (eve
     event.preventDefault(); // Prevent the default form submission
 
     // Extract values from the form
-    const groupID = document.getElementById("groupID").value;
+    const groupID = document.getElementById("groupID").value.trim();
     const numHosts = parseInt(document.getElementById("numberOfHosts").value, 10);
     const movementModel = document.getElementById('Movement')?.value;
     const waitTimeMin = parseFloat(document.getElementById("waitTimeMin").value) || 0;
@@ -446,18 +707,47 @@ document.getElementById("newGroupForm").addEventListener("submit", function (eve
     const speedMin = parseFloat(document.getElementById("speedMin").value) || 0;
     const speedMax = parseFloat(document.getElementById("speedMax").value) || 0;
     const movementRouteType = parseInt(document.getElementById("movementRouteType").value, 10);
-    const bufferSize = parseInt(document.getElementById("bufferSize").value, 10) || 0;
+    const bufferSizeRaw = document.getElementById("bufferSize").value.trim();
     const router = document.getElementById("router").value;
     const msgTtl = document.getElementById("msgTtl").value || "infinite";
     const activeTimeStart1 = document.getElementById("activeTimeStart1").value;
+    const routeFileInput = document.getElementById("groupRouteFile");
+    const routeFileUpload = routeFileInput?.files?.[0] || null;
+    const routeFile = getAssetRelativePathFromFile(routeFileUpload);
+
+    if (!groupID) {
+        alert("Group ID is required.");
+        return;
+    }
+
+    if (movementModel === 'MapRouteMovement' && !routeFile) {
+        alert("MapRouteMovement groups require a route file.");
+        return;
+    }
+
+    if (groupSettings.some(group => group.groupID === groupID && group.routeFile === routeFile && group.router === router)) {
+        alert(`A similar group entry for "${groupID}" already exists.`);
+        return;
+    }
+
+    const hasWaitOverride = waitTimeMin || waitTimeMax;
+    const hasSpeedOverride = speedMin || speedMax;
+    const waitTime = hasWaitOverride ? `${waitTimeMin}, ${waitTimeMax}` : '';
+    const speed = hasSpeedOverride ? `${speedMin}, ${speedMax}` : '';
+    const bufferSize = bufferSizeRaw ? bufferSizeRaw : '';
 
     // Construct the new group object
     const newGroup = {
         groupID: groupID,
         numHosts: numHosts,
         movementModel: movementModel || "ShortestPathMapBasedMovement",
+        routeFile: routeFile,
+        routeFileUpload: routeFileUpload,
         routeType: movementRouteType,
         router: router,
+        waitTime: waitTime,
+        speed: speed,
+        bufferSize: bufferSize,
         activeTimes: activeTimeStart1,
         messageTTL: msgTtl,
         actions: "Edit/Delete", // Default action text
@@ -473,12 +763,29 @@ document.getElementById("newGroupForm").addEventListener("submit", function (eve
     document.getElementById("newGroupForm").reset();
 });
 
+function removeGroupSetting(index) {
+    if (typeof index !== 'number' || index < 0 || index >= groupSettings.length) {
+        return;
+    }
+    groupSettings.splice(index, 1);
+    populateGroupTable();
+}
+
+function removeAllGroups() {
+    groupSettings.length = 0;
+    populateGroupTable();
+}
+
 // Function to edit group settings (as an example)
 function editGroupSetting(group) {
     // Here you can prompt for new values or open a modal to edit group settings
     const newNumHosts = prompt(`Edit Number of Hosts for Group ${group.groupID}`, group.numHosts);
     const newMovementModel = prompt(`Edit Movement Model for Group ${group.groupID}`, group.movementModel);
     const newRouter = prompt(`Edit Router for Group ${group.groupID}`, group.router);
+    const newWaitTime = prompt(`Edit Wait Time for Group ${group.groupID}`, group.waitTime || '');
+    const newSpeed = prompt(`Edit Speed for Group ${group.groupID}`, group.speed || '');
+    const newBufferSize = prompt(`Edit Buffer Size for Group ${group.groupID}`, group.bufferSize || '');
+    const newRouteFile = prompt(`Edit Route File for Group ${group.groupID}`, group.routeFile || '');
     const newActiveTimes = prompt(`Edit Active Times for Group ${group.groupID}`, group.activeTimes);
     const newMessageTTL = prompt(`Edit Message TTL for Group ${group.groupID}`, group.messageTTL);
 
@@ -486,6 +793,11 @@ function editGroupSetting(group) {
         group.numHosts = newNumHosts;
         group.movementModel = newMovementModel;
         group.router = newRouter;
+        group.waitTime = newWaitTime || '';
+        group.speed = newSpeed || '';
+        group.bufferSize = newBufferSize || '';
+        group.routeFile = newRouteFile || '';
+        group.routeFileUpload = null;
         group.activeTimes = newActiveTimes;
         group.messageTTL = newMessageTTL;
     }
@@ -837,33 +1149,24 @@ function applyConfigToForm(config) {
 
 
 // Movement function
-let fileList = ['shops.wkt', 'pedestrian_paths.wkt', 'main_roads.wkt', 'roads.wkt'];
-
-// Initially display predefined files
-const fileListContainer = document.getElementById('fileList');
-fileList.forEach(file => {
-    const listItem = document.createElement('li');
-    listItem.textContent = file; // Display the predefined file names
-    fileListContainer.appendChild(listItem);
-});
+renderMapFileList();
 
 // Event listener for file selection
 document.getElementById("mapFiles").addEventListener("change", function (event) {
-    let fileList = document.getElementById("fileList"); // Get the existing map file list
     let files = event.target.files; // Get the selected files
 
-    // Loop through the selected files and add them to the list
+    // Loop through the selected files and add them to the in-memory list
     for (let i = 0; i < files.length; i++) {
-        let fileName = files[i].name;
-
-        // Check if the file is already in the list
-        const existingItems = Array.from(fileList.children).map((item) => item.textContent);
-        if (!existingItems.includes(fileName)) {
-            const listItem = document.createElement("li");
-            listItem.textContent = fileName;
-            fileList.appendChild(listItem); // Append the new file to the list
+        const file = files[i];
+        const existingIndex = mapFileEntries.findIndex(entry => entry.name === file.name);
+        if (existingIndex === -1) {
+            mapFileEntries.push({ name: file.name, file: file });
+        } else {
+            mapFileEntries[existingIndex] = { name: file.name, file: file };
         }
     }
+
+    renderMapFileList();
 
     // Clear the file input value to allow re-selection of the same file
     event.target.value = "";
@@ -1010,7 +1313,7 @@ function openTab(evt, tabName) {
 }
 let batchNum;
 // Function to generate and download the settings file based on the tab
-function saveAllSettings() {
+async function saveAllSettings() {
     console.log("Download Settings triggered");
     let content = '';
 
@@ -1077,12 +1380,9 @@ ${interfaceName}.transmitRange = ${transmitRange}
 
     // Extract values from the form
     const CommoNmovementModel = document.getElementById("commonMovementModel").value;
-    const tagifyInput = document.getElementById("commonRouter");
-    const tagifyValue = JSON.parse(tagifyInput.value); // Parse the JSON-like string
-
-    // Convert to the desired format
-    const CommoNrouter = `[${tagifyValue.map(tag => tag.value).join("; ")}]`;
-    const routerCount = tagifyValue.length;
+    const routerValues = getTagifyInputValues("commonRouter", ['EpidemicRouter']);
+    const CommoNrouter = `[${routerValues.join("; ")}]`;
+    const routerCount = routerValues.length;
 
     // Handle buffer size - support multiple values like "5M; 10M; 20M"
     let CommoNbufferSize = document.getElementById("commonBufferSize").value;
@@ -1122,7 +1422,7 @@ ${interfaceName}.transmitRange = ${transmitRange}
     TTLLen = calculateBatchSize(CommoNmsgTtl);
 
     content += `
-Scenario.nrofHostGroups = ${document.getElementById("groupList").getElementsByTagName("tbody")[0].rows.length}
+Scenario.nrofHostGroups = ${getGroupCount()}
         `;
     // Collecting Common group Data
     content += `
@@ -1130,9 +1430,10 @@ Scenario.nrofHostGroups = ${document.getElementById("groupList").getElementsByTa
 Group.movementModel = ${CommoNmovementModel}
 Group.router = ${CommoNrouter}
 Group.bufferSize = ${CommoNbufferSize}`
-    if (commonRouteFile && commonRouteFile.value && commonRouteFile.value != '') {
+    const commonRouteFileValue = getNormalizedDataFileValue(commonRouteFile);
+    if (commonRouteFileValue) {
         content += `
-Group.routeFile = ${commonRouteFile.value}
+Group.routeFile = ${commonRouteFileValue}
    `
     }
 
@@ -1182,59 +1483,9 @@ Group.pois = ${poiString}
         }
     }
     // });
-    // Collecting Group Table Data
-    const groupTableRows = document.getElementById("groupList").getElementsByTagName("tbody")[0].rows;
-    let serial = 1;
-    for (let row of groupTableRows) {
-        const groupID = row.cells[0].innerText;
-        const numHosts = row.cells[1].innerText;
-        const movementModel = row.cells[2].innerText;
-        const route = row.cells[3].innerText;
-        const routeType = row.cells[4].innerText;
-        const router = row.cells[5].innerText;
-        const activeTimes = row.cells[6].innerText;
-        const messageTTL = row.cells[7].innerText;
-
-        content += `
-Group${serial}.groupID = ${groupID}
-Group${serial}.nrofHosts = ${numHosts}
-Group${serial}.movementModel = ${movementModel}
-`
-        if (route != '') {
-            content += `
-Group${serial}.routeFile = ${route}
-`
-        }
-
-        content += `
-Group${serial}.router = ${router}
-`
-        if (routeType) {
-            content += `
-Group${serial}.routeType = ${routeType}
-`
-        }
-        content += `
-Group${serial}.msgTtl = ${messageTTL}
-`
-        if (activeTimes != '0') {
-            content += `
- Group${serial}.activeTimes = ${activeTimes}
- 
- `;
-        }
-
-        serial++;
-    }
+    content += buildGroupConfigBlocks();
     // Event - auto-calculate total hosts from group table
-    let totalHosts = 0;
-    const groupTableRowsForEvents = document.getElementById("groupList").getElementsByTagName("tbody")[0].rows;
-    for (let row of groupTableRowsForEvents) {
-        totalHosts += parseInt(row.cells[1].innerText) || 0;
-    }
-    if (totalHosts === 0) {
-        totalHosts = parseInt(CommoNnumHosts) || 40;
-    }
+    let totalHosts = getTotalHostsFromGroups(parseInt(CommoNnumHosts) || 40);
 
     content += `
 ## Event settings
@@ -1286,15 +1537,14 @@ MovementModel.warmup = ${warmupTime}
 `;
 
     // Collect Map Files
-    const fileList = document.getElementById("fileList").children;
     content += `
 ## Map based movement -movement model specific settings
-MapBasedMovement.nrofMapFiles = ${fileList.length}
+MapBasedMovement.nrofMapFiles = ${getMapFileNames().length}
 `;
-    if (fileList.length > 0) {
+    const mapFileNames = getMapFileNames();
+    if (mapFileNames.length > 0) {
         let mapFileIndex = 1;
-        for (let fileItem of fileList) {
-            const fileName = fileItem.textContent.trim();
+        for (let fileName of mapFileNames) {
             content += `MapBasedMovement.mapFile${mapFileIndex} = data/${fileName}\n`;
             mapFileIndex++;
         }
@@ -1368,9 +1618,9 @@ GUI.EventLogPanel.nrofEvents = ${eventLogPanelNrofEvents}
 
 
     // Get the settings filename
-    let settingsFilename = name + '_settings.txt';
+    let settingsFilename = sanitizeFilenameBase(name) + '_settings.txt';
     if (document.getElementById("nameAdd").checked) {
-        settingsFilename = name + '_settings.txt';
+        settingsFilename = sanitizeFilenameBase(name) + '_settings.txt';
     }
 
     // Build the payload with simulation settings AND post-processing configs
@@ -1390,6 +1640,14 @@ GUI.EventLogPanel.nrofEvents = ${eventLogPanelNrofEvents}
 
     // Regression config
     payload.regression = collectRegressionConfig();
+
+    try {
+        await uploadDataAssetsIfNeeded();
+    } catch (error) {
+        console.error('Asset upload error:', error);
+        alert('Failed to upload data assets: ' + error.message);
+        return;
+    }
 
     // Send to server to save all at once
     fetch('/api/save-all', {
@@ -1607,6 +1865,8 @@ function collectBatchConfig() {
 }
 
 function collectRegressionConfig() {
+    const targets = getRegressionTargets();
+
     // Collect predictors from Tagify
     let predictors = [];
     if (typeof predictorsTagify !== 'undefined' && predictorsTagify?.value) {
@@ -1651,7 +1911,8 @@ function collectRegressionConfig() {
             active_files: []
         },
         features: {
-            target: document.getElementById('regressionTarget')?.value || 'delivery_prob',
+            target: targets[0] || 'delivery_prob',
+            targets: targets,
             selection_mode: document.getElementById('regressionSelectionMode')?.value || 'manual',
             predictors: predictors,
             exclude: excludeVars.length > 0 ? excludeVars : ['seed', 'run_id'],
@@ -1699,7 +1960,7 @@ function collectRegressionConfig() {
 }
 
 
-function saveDefaultSettings() {
+async function saveDefaultSettings() {
     console.log("Save Default Settings triggered");
     let content = '';
 
@@ -1745,19 +2006,19 @@ Scenario.endTime = ${document.getElementById("endTime").value}
 
     // Common group settings
     const CommoNmovementModel = document.getElementById("commonMovementModel").value;
-    const tagifyInput = document.getElementById("commonRouter");
-    let CommoNrouter;
-    try {
-        const tagifyValue = JSON.parse(tagifyInput.value);
-        CommoNrouter = tagifyValue.map(tag => tag.value).join("; ");
-    } catch (e) {
-        CommoNrouter = tagifyInput.value || 'EpidemicRouter';
-    }
-    const CommoNbufferSize = document.getElementById("commonBufferSize").value;
+    const CommoNrouter = getRouterConfigValue();
+    let CommoNbufferSize = document.getElementById("commonBufferSize").value;
     const CommoNwaitTime = document.getElementById("commonWaitTime").value;
     const CommoNspeed = document.getElementById("commonSpeed").value;
-    const CommoNmsgTtl = document.getElementById("commonTtl").value;
+    let CommoNmsgTtl = document.getElementById("commonTtl").value;
     const CommoNnumHosts = document.getElementById("commonNumberOfHost").value;
+
+    if (CommoNbufferSize.includes(";")) {
+        CommoNbufferSize = `[${CommoNbufferSize}]`;
+    }
+    if (CommoNmsgTtl.includes(";")) {
+        CommoNmsgTtl = `[${CommoNmsgTtl}]`;
+    }
 
     // Handle multi-interface selection
     let interfaces = ['btInterface'];
@@ -1773,16 +2034,16 @@ Scenario.endTime = ${document.getElementById("endTime").value}
         }
     }
 
-    const groupTableRows = document.getElementById("groupList").getElementsByTagName("tbody")[0].rows;
-    content += `\nScenario.nrofHostGroups = ${groupTableRows.length}\n`;
+    content += `\nScenario.nrofHostGroups = ${getGroupCount()}\n`;
 
     content += `\n## Common settings for all groups\n`;
     content += `Group.movementModel = ${CommoNmovementModel}\n`;
     content += `Group.router = ${CommoNrouter}\n`;
     content += `Group.bufferSize = ${CommoNbufferSize}\n`;
     const commonRouteFile = document.getElementById("commonRouteFile");
-    if (commonRouteFile && commonRouteFile.value) {
-        content += `Group.routeFile = ${commonRouteFile.value}\n`;
+    const commonRouteFileValue = getNormalizedDataFileValue(commonRouteFile);
+    if (commonRouteFileValue) {
+        content += `Group.routeFile = ${commonRouteFileValue}\n`;
     }
     content += `Group.waitTime = ${CommoNwaitTime}\n`;
     content += `Group.nrofInterfaces = ${interfaces.length}\n`;
@@ -1793,50 +2054,29 @@ Scenario.endTime = ${document.getElementById("endTime").value}
     content += `Group.msgTtl = ${CommoNmsgTtl}\n`;
     content += `Group.nrofHosts = ${CommoNnumHosts}\n`;
 
-    // Group Table Data
-    let serial = 1;
-    for (let row of groupTableRows) {
-        const groupID = row.cells[0].innerText;
-        const numHosts = row.cells[1].innerText;
-        const movementModel = row.cells[2].innerText;
-        const route = row.cells[3].innerText;
-        const routeType = row.cells[4].innerText;
-        const router = row.cells[5].innerText;
-        const activeTimes = row.cells[6].innerText;
-        const messageTTL = row.cells[7].innerText;
+    content += buildGroupConfigBlocks();
 
-        content += `\nGroup${serial}.groupID = ${groupID}\n`;
-        content += `Group${serial}.nrofHosts = ${numHosts}\n`;
-        content += `Group${serial}.movementModel = ${movementModel}\n`;
-        if (route) {
-            content += `Group${serial}.routeFile = ${route}\n`;
-        }
-        content += `Group${serial}.router = ${router}\n`;
-        if (routeType) {
-            content += `Group${serial}.routeType = ${routeType}\n`;
-        }
-        content += `Group${serial}.msgTtl = ${messageTTL}\n`;
-        if (activeTimes && activeTimes !== '0') {
-            content += `Group${serial}.activeTimes = ${activeTimes}\n`;
-        }
-        serial++;
-    }
-
-    // Event settings
+    // Event settings - auto-calculate total hosts from group table
+    let totalHostsForEvents = getTotalHostsFromGroups(parseInt(CommoNnumHosts) || 40);
     content += `\n## Event settings\n`;
     content += `Events.nrof = ${events.length}\n`;
     let count = 1;
     for (let row of events) {
+        // Use auto-calculated host range instead of user-typed value
+        const eventHosts = `0,${totalHostsForEvents - 1}`;
         content += `Events${count}.class = ${row['eventClass']}\n`;
         content += `Events${count}.interval = ${row['interval']}\n`;
         content += `Events${count}.size = ${row['size']}\n`;
-        content += `Events${count}.hosts = ${row['hosts']}\n`;
+        content += `Events${count}.hosts = ${eventHosts}\n`;
         content += `Events${count}.prefix = ${row['prefix']}\n`;
         count++;
     }
 
     // Movement model settings
-    const rngSeed = document.getElementById("rngSeed").value || "1";
+    let rngSeed = document.getElementById("rngSeed").value || "1";
+    if (rngSeed.includes(";")) {
+        rngSeed = `[${rngSeed}]`;
+    }
     const worldSize = document.getElementById("worldSize").value || "4500, 3400";
     const warmupTime = document.getElementById("warmup").value || "1000";
     content += `\n## Movement model settings\n`;
@@ -1845,13 +2085,12 @@ Scenario.endTime = ${document.getElementById("endTime").value}
     content += `MovementModel.warmup = ${warmupTime}\n`;
 
     // Map Files
-    const fileList = document.getElementById("fileList").children;
     content += `\n## Map based movement settings\n`;
-    content += `MapBasedMovement.nrofMapFiles = ${fileList.length}\n`;
-    if (fileList.length > 0) {
+    const mapFileNames = getMapFileNames();
+    content += `MapBasedMovement.nrofMapFiles = ${mapFileNames.length}\n`;
+    if (mapFileNames.length > 0) {
         let mapFileIndex = 1;
-        for (let fileItem of fileList) {
-            const fileName = fileItem.textContent.trim();
+        for (let fileName of mapFileNames) {
             content += `MapBasedMovement.mapFile${mapFileIndex} = data/${fileName}\n`;
             mapFileIndex++;
         }
@@ -1898,6 +2137,14 @@ Scenario.endTime = ${document.getElementById("endTime").value}
     content += `GUI.UnderlayImage.rotate = ${underlayImageRotate}\n`;
     content += `GUI.EventLogPanel.nrofEvents = ${eventLogPanelNrofEvents}\n`;
 
+    try {
+        await uploadDataAssetsIfNeeded();
+    } catch (error) {
+        console.error('Asset upload error:', error);
+        alert('Failed to upload data assets: ' + error.message);
+        return;
+    }
+
     // Save to server instead of browser download
     fetch('/api/save-settings', {
         method: 'POST',
@@ -1921,13 +2168,12 @@ Scenario.endTime = ${document.getElementById("endTime").value}
         });
 }
 
-function runONE() {
+async function runONE() {
     // Auto-detect batch mode based on settings
     const routerInput = document.getElementById("commonRouter");
     let routerCount = 1;
     try {
-        const routerTagifyValue = JSON.parse(routerInput?.value || '[]');
-        routerCount = Array.isArray(routerTagifyValue) ? routerTagifyValue.length : 1;
+        routerCount = getTagifyInputValues(routerInput, ['EpidemicRouter']).length;
     } catch (e) {
         routerCount = 1;
     }
@@ -2004,9 +2250,7 @@ ${interfaceName}.transmitRange = ${transmitRange}
 
     // Common group settings
     const CommoNmovementModel = document.getElementById("commonMovementModel").value;
-    const tagifyInput = document.getElementById("commonRouter");
-    const tagifyValue = JSON.parse(tagifyInput.value);
-    const CommoNrouter = `[${tagifyValue.map(tag => tag.value).join("; ")}]`;
+    const CommoNrouter = getRouterConfigValue();
     // routerCount already computed above for batch mode detection
     let CommoNbufferSize = document.getElementById("commonBufferSize").value;
     // Handle buffer size batch mode
@@ -2041,16 +2285,17 @@ ${interfaceName}.transmitRange = ${transmitRange}
     TTLLen = calculateBatchSize(CommoNmsgTtl);
 
     content += `
-Scenario.nrofHostGroups = ${document.getElementById("groupList").getElementsByTagName("tbody")[0].rows.length}
+Scenario.nrofHostGroups = ${getGroupCount()}
         `;
     content += `
 ## Common settings for all groups:
 Group.movementModel = ${CommoNmovementModel}
 Group.router = ${CommoNrouter}
 Group.bufferSize = ${CommoNbufferSize}`;
-    if (commonRouteFile && commonRouteFile.value && commonRouteFile.value != '') {
+    const commonRouteFileValue = getNormalizedDataFileValue(commonRouteFile);
+    if (commonRouteFileValue) {
         content += `
-Group.routeFile = ${commonRouteFile.value}
+Group.routeFile = ${commonRouteFileValue}
    `
     }
 
@@ -2098,59 +2343,10 @@ Group.pois = ${poiString}
         }
     }
 
-    // Group Table Data
-    const groupTableRows = document.getElementById("groupList").getElementsByTagName("tbody")[0].rows;
-    let serial = 1;
-    for (let row of groupTableRows) {
-        const groupID = row.cells[0].innerText;
-        const numHosts = row.cells[1].innerText;
-        const movementModel = row.cells[2].innerText;
-        const route = row.cells[3].innerText;
-        const routeType = row.cells[4].innerText;
-        const router = row.cells[5].innerText;
-        const activeTimes = row.cells[6].innerText;
-        const messageTTL = row.cells[7].innerText;
-
-        content += `
-Group${serial}.groupID = ${groupID}
-Group${serial}.nrofHosts = ${numHosts}
-Group${serial}.movementModel = ${movementModel}
-`
-        if (route != '') {
-            content += `
-Group${serial}.routeFile = ${route}
-`
-        }
-
-        content += `
-Group${serial}.router = ${router}
-`
-        if (routeType) {
-            content += `
-Group${serial}.routeType = ${routeType}
-`
-        }
-        content += `
-Group${serial}.msgTtl = ${messageTTL}
-`
-        if (activeTimes != '0') {
-            content += `
- Group${serial}.activeTimes = ${activeTimes}
- 
- `;
-        }
-        serial++;
-    }
+    content += buildGroupConfigBlocks();
 
     // Event settings - auto-calculate total hosts from group table
-    let totalHostsForEvents = 0;
-    const groupTableRowsForEvents = document.getElementById("groupList").getElementsByTagName("tbody")[0].rows;
-    for (let row of groupTableRowsForEvents) {
-        totalHostsForEvents += parseInt(row.cells[1].innerText) || 0;
-    }
-    if (totalHostsForEvents === 0) {
-        totalHostsForEvents = parseInt(CommoNnumHosts) || 40;
-    }
+    let totalHostsForEvents = getTotalHostsFromGroups(parseInt(CommoNnumHosts) || 40);
 
     content += `
 ## Event settings
@@ -2198,15 +2394,14 @@ MovementModel.warmup = ${warmupTime}
 `;
 
     // Map Files
-    const fileList = document.getElementById("fileList").children;
     content += `
 ## Map based movement -movement model specific settings
-MapBasedMovement.nrofMapFiles = ${fileList.length}
+MapBasedMovement.nrofMapFiles = ${getMapFileNames().length}
 `;
-    if (fileList.length > 0) {
+    const mapFileNames = getMapFileNames();
+    if (mapFileNames.length > 0) {
         let mapFileIndex = 1;
-        for (let fileItem of fileList) {
-            const fileName = fileItem.textContent.trim();
+        for (let fileName of mapFileNames) {
             content += `MapBasedMovement.mapFile${mapFileIndex} = data/${fileName}\n`;
             mapFileIndex++;
         }
@@ -2279,7 +2474,7 @@ GUI.EventLogPanel.nrofEvents = ${eventLogPanelNrofEvents}
     // ============================================================
     // STEP 2: Build filename
     // ============================================================
-    let settingsFilename = name + '_settings.txt';
+    let settingsFilename = sanitizeFilenameBase(name) + '_settings.txt';
 
     // ============================================================
     // STEP 3: Build payload with all data
@@ -2297,6 +2492,15 @@ GUI.EventLogPanel.nrofEvents = ${eventLogPanelNrofEvents}
         averager: collectBatchConfig(),
         regression: collectRegressionConfig()
     };
+
+    try {
+        await uploadDataAssetsIfNeeded();
+    } catch (error) {
+        console.error("Asset upload error:", error);
+        logError(`Asset upload error: ${error.message}`);
+        showSaveStatus('✗ Asset upload failed', false);
+        return;
+    }
 
     // ============================================================
     // STEP 4: Send to backend /api/run-one endpoint
@@ -2996,6 +3200,7 @@ function loadAllConfigs() {
 
 let autoSaveTimer = null;
 let lastSaveStatus = null;
+let autoSaveInitialized = false;
 
 // Debounce function to avoid too many saves
 function debounce(func, wait) {
@@ -3061,86 +3266,19 @@ const autoSaveConfigs = debounce(function () {
 
 // Silent save functions (no alerts)
 function saveAnalysisConfigSilent() {
-    return fetch('/api/config/analysis')
-        .then(response => response.json())
-        .then(config => {
-            // Update directories - use batchFolder as the shared report directory
-            config.directories = config.directories || {};
-            config.directories.report_dir = document.getElementById('batchFolder')?.value || 'reports/';
-            config.directories.plots_dir = document.getElementById('analysisPlotsDir')?.value || 'plots/';
-
-            // Update other fields - sync from shared inputs
-            config.data_separator = document.getElementById('batchDataSeparator')?.value || ':';
-            config.report_extension = document.getElementById('batchExtension')?.value || '.txt';
-
-            return fetch('/api/config/analysis', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
-            });
-        })
-        .then(response => response.json())
+    return postConfig('analysis', collectAnalysisConfig())
         .then(data => data.success)
         .catch(() => false);
 }
 
 function saveBatchConfigSilent() {
-    return fetch('/api/config/averager')
-        .then(response => response.json())
-        .then(config => {
-            config.folder = document.getElementById('batchFolder')?.value || 'reports/';
-            config.file_filter = config.file_filter || {};
-            config.file_filter.extension = document.getElementById('batchExtension')?.value || '.txt';
-            config.filename_pattern = config.filename_pattern || {};
-            config.filename_pattern.delimiter = window.patternBuilder?.delimiter || '_';
-            // Sync full pattern components from PatternBuilder
-            if (window.patternBuilder && window.patternBuilder.patternNames.length > 0) {
-                const components = {};
-                window.patternBuilder.patternNames.forEach((name, index) => {
-                    components[name] = index;
-                });
-                config.filename_pattern.components = components;
-                config.filename_pattern.delimiter = window.patternBuilder.delimiter;
-            }
-            config.data_separator = document.getElementById('batchDataSeparator')?.value || ':';
-            config.output = config.output || {};
-            config.output.precision = parseInt(document.getElementById('batchPrecision')?.value) || 4;
-
-            return fetch('/api/config/averager', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
-            });
-        })
-        .then(response => response.json())
+    return postConfig('averager', collectBatchConfig())
         .then(data => data.success)
         .catch(() => false);
 }
 
 function saveRegressionConfigSilent() {
-    return fetch('/api/config/regression')
-        .then(response => response.json())
-        .then(config => {
-            config.input = config.input || {};
-            config.input.csv_directory = document.getElementById('regressionCsvDir')?.value || 'plots/';
-            config.output = config.output || {};
-            config.output.directory = document.getElementById('regressionOutputDir')?.value || 'regression_results/';
-            config.features = config.features || {};
-            config.features.target = document.getElementById('regressionTarget')?.value || 'delivery_prob';
-            config.features.selection_mode = document.getElementById('regressionSelectionMode')?.value || 'manual';
-            config.features.normalize = document.getElementById('regressionNormalize')?.checked ?? true;
-            config.model_settings = config.model_settings || {};
-            config.model_settings.split_settings = config.model_settings.split_settings || {};
-            config.model_settings.split_settings.train_size = parseFloat(document.getElementById('regressionTrainSize')?.value) || 0.75;
-            config.model_settings.split_settings.random_state = parseInt(document.getElementById('regressionRandomState')?.value) || 5;
-
-            return fetch('/api/config/regression', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
-            });
-        })
-        .then(response => response.json())
+    return postConfig('regression', collectRegressionConfig())
         .then(data => data.success)
         .catch(() => false);
 }
@@ -3148,16 +3286,19 @@ function saveRegressionConfigSilent() {
 // Setup auto-save listeners on all post-processing form inputs
 function setupAutoSave() {
     const postProcessingDiv = document.getElementById('PostProcessing');
-    if (!postProcessingDiv) return;
+    if (!postProcessingDiv || autoSaveInitialized) return;
 
-    // Listen for changes on all input types
-    const inputs = postProcessingDiv.querySelectorAll('input, select, textarea');
-    inputs.forEach(input => {
-        input.addEventListener('change', autoSaveConfigs);
-        input.addEventListener('input', autoSaveConfigs);
-    });
+    const delegatedAutoSave = (event) => {
+        if (event.target && event.target.matches('input, select, textarea')) {
+            autoSaveConfigs();
+        }
+    };
 
-    console.log('Auto-save enabled for', inputs.length, 'fields');
+    postProcessingDiv.addEventListener('change', delegatedAutoSave);
+    postProcessingDiv.addEventListener('input', delegatedAutoSave);
+    autoSaveInitialized = true;
+
+    console.log('Auto-save enabled with delegated listeners');
 }
 
 
@@ -3231,47 +3372,7 @@ function loadAnalysisConfig() {
 }
 
 function saveAnalysisConfig() {
-    fetch('/api/config/analysis')
-        .then(response => response.json())
-        .then(config => {
-            // Update directories
-            config.directories = config.directories || {};
-            config.directories.report_dir = document.getElementById('analysisReportDir').value;
-            config.directories.plots_dir = document.getElementById('analysisPlotsDir').value;
-
-            // Update metrics using Tagify
-            config.metrics = config.metrics || {};
-            if (metricsIncludeTagify) {
-                const tags = metricsIncludeTagify.value || [];
-                config.metrics.include = tags.map(t => t.value);
-            }
-            if (metricsIgnoreTagify) {
-                const tags = metricsIgnoreTagify.value || [];
-                config.metrics.ignore = tags.map(t => t.value);
-            }
-
-            // Update enabled plots using Tagify
-            config.enabled_plots = config.enabled_plots || {};
-            // Reset all to false first
-            AVAILABLE_PLOTS.forEach(plot => {
-                config.enabled_plots[plot] = false;
-            });
-            // Then enable selected ones
-            if (enabledPlotsTagify) {
-                const tags = enabledPlotsTagify.value || [];
-                tags.forEach(t => {
-                    config.enabled_plots[t.value] = true;
-                });
-            }
-
-            // Save
-            return fetch('/api/config/analysis', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
-            });
-        })
-        .then(response => response.json())
+    postConfig('analysis', collectAnalysisConfig())
         .then(data => {
             if (data.success) {
                 alert('Analysis config saved successfully!');
@@ -3371,37 +3472,7 @@ function loadBatchConfig() {
 }
 
 function saveBatchConfig() {
-    fetch('/api/config/averager')
-        .then(response => response.json())
-        .then(config => {
-            config.folder = document.getElementById('batchFolder').value;
-            config.file_filter = config.file_filter || {};
-            config.file_filter.extension = document.getElementById('batchExtension').value;
-
-            config.filename_pattern = config.filename_pattern || {};
-            // Use PatternBuilder delimiter (batchDelimiter element doesn't exist)
-            config.filename_pattern.delimiter = window.patternBuilder?.delimiter || '_';
-
-            // Sync full pattern components from PatternBuilder
-            if (window.patternBuilder && window.patternBuilder.patternNames.length > 0) {
-                const components = {};
-                window.patternBuilder.patternNames.forEach((name, index) => {
-                    components[name] = index;
-                });
-                config.filename_pattern.components = components;
-            }
-
-            config.data_separator = document.getElementById('batchDataSeparator')?.value || ':';
-            config.output = config.output || {};
-            config.output.precision = parseInt(document.getElementById('batchPrecision').value) || 4;
-
-            return fetch('/api/config/averager', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
-            });
-        })
-        .then(response => response.json())
+    postConfig('averager', collectBatchConfig())
         .then(data => {
             if (data.success) {
                 alert('Batch config saved successfully!');
@@ -3428,7 +3499,9 @@ function loadRegressionConfig() {
             document.getElementById('regressionOutputDir').value = config.output?.directory || 'regression_results/';
 
             // Target using Tagify - supports multiple targets
-            const targets = config.features?.targets || (config.features?.target ? [config.features.target] : []);
+            const targets = config.features?.targets?.length
+                ? config.features.targets
+                : parseTagifyLikeValues(config.features?.target);
             if (regressionTargetTagify && targets.length > 0) {
                 regressionTargetTagify.removeAllTags();
                 regressionTargetTagify.addTags(targets);
@@ -3486,53 +3559,7 @@ function loadRegressionConfig() {
 }
 
 function saveRegressionConfig() {
-    fetch('/api/config/regression')
-        .then(response => response.json())
-        .then(config => {
-            config.input = config.input || {};
-            config.input.csv_directory = document.getElementById('regressionCsvDir').value;
-
-            config.output = config.output || {};
-            config.output.directory = document.getElementById('regressionOutputDir').value;
-
-            config.features = config.features || {};
-            config.features.target = document.getElementById('regressionTarget').value;
-
-            // Predictors using Tagify
-            if (predictorsTagify) {
-                const tags = predictorsTagify.value || [];
-                config.features.predictors = tags.map(t => t.value);
-            }
-
-            config.model_settings = config.model_settings || {};
-            config.model_settings.split_settings = config.model_settings.split_settings || {};
-            config.model_settings.split_settings.train_size = parseFloat(document.getElementById('regressionTrainSize').value) || 0.75;
-            config.model_settings.split_settings.random_state = parseInt(document.getElementById('regressionRandomState').value) || 5;
-
-            // Enabled models using Tagify
-            config.model_settings.enabled_models = config.model_settings.enabled_models || {};
-            // Reset all to false first
-            AVAILABLE_MODELS.forEach(model => {
-                config.model_settings.enabled_models[model] = false;
-            });
-            // Then enable selected ones
-            if (enabledModelsTagify) {
-                const tags = enabledModelsTagify.value || [];
-                tags.forEach(t => {
-                    config.model_settings.enabled_models[t.value] = true;
-                });
-            }
-
-            config.features.polynomial_features = config.features.polynomial_features || {};
-            config.features.polynomial_features.enabled = document.getElementById('polyEnabled').checked;
-
-            return fetch('/api/config/regression', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
-            });
-        })
-        .then(response => response.json())
+    postConfig('regression', collectRegressionConfig())
         .then(data => {
             if (data.success) {
                 alert('Regression config saved successfully!');
@@ -3563,7 +3590,7 @@ function saveAllPostProcessingConfigs() {
     // Save all configs via the save-all endpoint
     const payload = {
         analysis: analysisConfig,
-        batch: batchConfig,
+        averager: batchConfig,
         regression: regressionConfig
     };
 

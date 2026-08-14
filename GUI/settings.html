@@ -316,7 +316,7 @@
                     <label for="transmitSpeed"
                         data-tooltip="Data transfer rate in bytes/sec. 250k = Bluetooth (~2Mbps), 10M = WiFi.">Transmit
                         Speed:</label>
-                    <input type="number" id="transmitSpeed" name="transmitSpeed" required min="1">
+                    <input type="text" id="transmitSpeed" name="transmitSpeed" required placeholder="e.g., 250k or 10M">
                 </div>
                 <div class="form-group">
                     <label for="transmitRange"
@@ -688,6 +688,11 @@
                 </div>
             </div>
 
+            <div class="form-group">
+                <label for="groupRouteFile">Route File (.wkt):</label>
+                <input type="file" id="groupRouteFile" name="groupRouteFile" accept=".wkt">
+            </div>
+
             <br>
             <div class="form-group">
                 <label for="router">Router:</label>
@@ -721,7 +726,7 @@
             <div class="form-row">
                 <button type="submit" class="add-button"
                     style="font-size: 1rem; padding-top: 0.8%; padding-bottom: 0.8%;">Add Group</button>
-                <button type="submit" class="remove-button"
+                <button type="button" class="remove-button" onclick="removeAllGroups()"
                     style="font-size: 1rem; padding-top: 0.8%; padding-bottom: 0.8%;">Remove All Groups</button>
             </div>
         </form>
@@ -814,10 +819,10 @@
                 </div>
 
                 <div class="button-row" style="display: flex; gap: 12px; margin-top: 20px;">
-                    <button type="button" class="add-button">
+                    <button type="submit" class="add-button">
                         <i class="fas fa-plus"></i> Add Event
                     </button>
-                    <button type="button" class="remove-button">
+                    <button type="button" class="remove-button" onclick="removeAllEvents()">
                         <i class="fas fa-trash"></i> Remove All Events
                     </button>
                 </div>

@@ -20,8 +20,7 @@
       "degree": 2,
       "interaction_only": true,
       "include_bias": false
-    },
-    "target": "[{\"value\":\"delivery_prob\"}]"
+    }
   },
   "model_settings": {
     "split_settings": {

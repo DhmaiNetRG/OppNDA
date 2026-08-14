@@ -29,7 +29,7 @@ AVERAGER_CONFIG_SCHEMA = {
 
 REGRESSION_CONFIG_SCHEMA = {
     "input": ["csv_directory"],
-    "features": ["target", "predictors"],
+    "features": ["targets", "predictors"],
     "model_settings": ["enabled_models"],
     "output": ["directory"]
 }

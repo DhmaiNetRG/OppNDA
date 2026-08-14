@@ -31,9 +31,11 @@ def create_app():
     app.config['CONFIG_DIR'] = BASE_DIR / 'config'
     app.config['PLOTS_DIR'] = BASE_DIR / 'plots'
     app.config['CORE_DIR'] = BASE_DIR / 'core'
+    app.config['DATA_DIR'] = BASE_DIR / 'data'
     
     # Ensure output directories exist
     app.config['PLOTS_DIR'].mkdir(exist_ok=True)
+    app.config['DATA_DIR'].mkdir(exist_ok=True)
     
     # Register blueprints
     from app.routes import main_bp

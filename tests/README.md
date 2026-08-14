@@ -95,30 +95,43 @@ End-to-end tests for the complete application workflow.
 
 ---
 
-### `test_resource_manager.py` — Memory Management
+### `test_resource_manager.py` — Bounded Worker Concurrency & Memory Models
 
-Tests for dynamic worker optimization and memory estimation.
+Tests for bounded worker concurrency, memory feasibility constraints, and theoretical models from the OppNDA paper (Eq. 1 - 6).
 
 **Test Classes:**
 
 #### `TestResourceConfig`
-- Default parameter validation (η=0.75, γ=3.0, overhead=50MB)
+- `test_default_eta` — Validates RAM budget threshold $\eta = 0.85$
+- `test_default_gamma` — Validates data expansion factor $\gamma = 2.5$
+- `test_default_overhead` — Validates fixed overhead $\mathcal{M}_{\mathrm{overhead}} = 30\text{ MB}$
+- `test_safety_enabled_by_default` — Ensures safety bounds active by default
+- `test_worker_bounds` — Validates min/max worker boundaries
 
 #### `TestMemoryEstimator`
-- `test_file_memory_estimate` — Single file estimation
-- `test_batch_memory_estimate` — Batch peak estimation
-- `test_empty_batch` — Edge case handling
+- `test_file_memory_estimate` — Single report footprint ($\gamma S + \mathcal{M}_{\mathrm{overhead}}$)
+- `test_estimate_memory_bound_eq1` — Mathematical bound $\mathcal{M}(P) \le \mathcal{M}_{\mathrm{base}} + P(\gamma S_{\max} + \mathcal{M}_{\mathrm{overhead}})$ (Eq. 1)
+- `test_batch_memory_estimate` — Batch peak memory estimation
+- `test_empty_batch` — Empty batch returns baseline memory
 
-#### `TestResourceManager`
-- Initialization and parameter validation
-- `test_optimal_workers_returns_positive`
-- `test_optimal_workers_respects_max`
-- `test_safety_disabled_uses_fallback`
+#### `TestResourceManagerTheoreticalBounds`
+- `test_initialization` — Verifies default framework constants
+- `test_custom_parameters` — Custom $\eta, \gamma, \mathcal{M}_{\mathrm{overhead}}$ overrides
+- `test_memory_feasible_workers_eq3` — Closed-form $P_{\mathrm{mem}}^{\max} = \lfloor \frac{\eta M_{\mathrm{RAM}} - \mathcal{M}_{\mathrm{base}}}{\gamma S_{\max} + \mathcal{M}_{\mathrm{overhead}}} \rfloor$ (Eq. 3)
+- `test_max_feasible_workers_eq4` — Multi-constraint bound $P_{\max} = \min(P_{\mathrm{CPU}}, P_{\mathrm{mem}}^{\max}, N_{\mathrm{tasks}})$ (Eq. 4)
+- `test_feasible_worker_set_eq6` — Validates $P \in \mathcal{P} = \{P \in \mathbb{Z}^+ \mid 1 \le P \le P_{\max}\}$ (Eq. 6)
+- `test_safety_disabled_uses_fallback` — Fallback logic when safety toggle is disabled
+- `test_memory_status_contains_theoretical_metrics` — Validates full telemetry dictionary
 
 #### `TestDynamicSemaphore`
-- `test_basic_acquire_release`
-- `test_context_manager`
-- `test_respects_permits`
+- `test_basic_acquire_release` — Permit acquisition and release
+- `test_context_manager` — Context manager acquisition
+- `test_respects_permits` — Non-blocking permit exhaustion
+
+#### `TestConvenienceFunction` & `TestFileBasedEstimation`
+- `test_returns_positive_integer` — Valid integer worker return
+- `test_task_bounding_parameter` — Explicit $N_{\mathrm{tasks}}$ bounding
+- `test_with_temp_files` — End-to-end file sizing and $S_{\max}$ derivation
 
 ---
 

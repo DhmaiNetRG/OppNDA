@@ -132,30 +132,38 @@ See [`examples/`](examples/) for sample configurations.
 
 ## Performance Optimization
 
-OppNDA implements **dynamic memory management** to efficiently process large datasets. The system automatically calculates optimal parallelism based on available RAM:
+OppNDA implements **dynamic memory management** and **bounded worker concurrency** to efficiently process large datasets without triggering swap thrashing. The system bounds worker concurrency based on available memory, CPU cores, and task count:
+
+$$\mathcal{M}(P) \le \mathcal{M}_{\mathrm{base}} + P\left(\gamma S_{\max} + \mathcal{M}_{\mathrm{overhead}}\right) \le \eta M_{\mathrm{RAM}}$$
+
+$$P_{\max} = \min \left\{ P_{\mathrm{CPU}}, \; \left\lfloor \frac{\eta M_{\mathrm{RAM}} - \mathcal{M}_{\mathrm{base}}}{\gamma S_{\max} + \mathcal{M}_{\mathrm{overhead}}} \right\rfloor, \; N_{\mathrm{tasks}} \right\}$$
 
 ```python
 from core.resource_manager import get_optimal_workers
 
-# Automatic worker calculation (default)
-workers = get_optimal_workers()  # Uses 85% RAM threshold
+# Automatic worker calculation (default bounded concurrency)
+workers = get_optimal_workers()  # Uses eta=0.85 RAM budget
 
-# With file-based estimation
+# With file-based S_max and task estimation
 workers = get_optimal_workers(file_paths=['report1.txt', 'report2.txt'])
 
-# Disable safety for maximum performance (use with caution)
+# Bounded by specific task count
+workers = get_optimal_workers(num_tasks=8)
+
+# Disable safety for unrestricted CPU utilization (use with caution)
 workers = get_optimal_workers(safety_enabled=False)
 ```
 
-### Configuration
+### Configuration Parameters
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `eta` (η) | 0.85 | Maximum RAM utilization threshold |
-| `gamma` (γ) | 2.5 | DataFrame expansion factor |
-| `safety_enabled` | True | Enable/disable memory management |
+| Parameter | Symbol | Default | Description |
+|-----------|--------|---------|-------------|
+| `eta` | $\eta$ | `0.85` | Fraction of system RAM budget allocated to multiprocessing |
+| `gamma` | $\gamma$ | `2.5` | In-memory report data expansion factor |
+| `overhead_mb` | $\mathcal{M}_{\mathrm{overhead}}$ | `30 MB` | Fixed per-worker memory overhead |
+| `safety_enabled` | — | `True` | Enable/disable memory feasibility constraints |
 
-> 📖 **See [PERFORMANCE.md](PERFORMANCE.md) for mathematical models, API reference, benchmarks, and advanced configuration.**
+> 📖 **See [PERFORMANCE.md](PERFORMANCE.md) for full mathematical derivations (Eq. 1 - 6), API references, and tuning guides.**
 
 ## Project Structure
 

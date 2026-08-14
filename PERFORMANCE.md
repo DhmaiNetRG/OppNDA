@@ -1,297 +1,252 @@
 # Performance & Memory Optimization
 
-OppNDA implements **dynamic resource management** to efficiently process large simulation datasets while preventing system instability. This document describes the mathematical models, configuration options, and usage patterns.
+OppNDA implements **dynamic resource management** and **bounded worker concurrency** to efficiently process large simulation datasets while preventing system instability and OS-level swap thrashing. This document details the mathematical formulations, framework-level configuration options, and usage patterns.
 
 ## Overview
 
-Processing ONE Simulator reports involves reading, parsing, and aggregating thousands of files. Without careful memory management, parallel processing can exhaust RAM and cause OS-level swap thrashing. OppNDA addresses this with:
+Processing ONE Simulator reports involves reading, parsing, and aggregating numerous heterogeneous simulation outputs. In a parallel execution environment, unconstrained worker spawning can rapidly exhaust physical RAM and trigger swap thrashing. 
 
-1. **Memory-aware worker allocation** — Dynamically calculates optimal parallelism
-2. **Predictive memory estimation** — Estimates peak RAM usage before processing
-3. **Adaptive semaphore control** — Adjusts concurrency based on real-time memory pressure
+OppNDA manages memory consumption through:
+1. **Conservative Memory Bounding** — Models instantaneous memory consumption across concurrent workers.
+2. **Memory-Feasible Worker Derivation** — Analytically computes maximum safe worker concurrency.
+3. **Multi-Constraint Bounding** — Bounds concurrency across available processing cores, memory limits, and independent task count.
+4. **Adaptive Dynamic Semaphores** — Regulates real-time concurrency under system-level memory pressure.
 
 ---
 
 ## Mathematical Models
 
-### Memory Estimation Model
+The resource management engine directly implements the mathematical framework established in the OppNDA research paper.
 
-For a batch of files, peak memory consumption is estimated as:
+### 1. Multiprocessing Memory Consumption Model
 
-$$M(t) \approx M_{base} + \sum_{i=1}^{P} \left( \gamma \cdot size(r_i) + M_{overhead} \right)$$
+Let $\mathcal{M}_{\mathrm{base}}$ denote the baseline memory footprint of the *OppNDA Engine* (main process), and let $\mathcal{M}_{\mathrm{overhead}}$ denote the fixed memory overhead associated with each worker process (e.g., Python runtime imports, execution buffers).
+
+In a multiprocessing environment with $P$ workers, the instantaneous memory footprint is modeled as:
+
+$$\mathcal{M}(P) \le \mathcal{M}_{\mathrm{base}} + P\left(\gamma S_{\max} + \mathcal{M}_{\mathrm{overhead}}\right) \tag{1}$$
 
 Where:
-- $M_{base}$ — Baseline memory of the Python process
+- $\mathcal{M}_{\mathrm{base}}$ — Baseline memory footprint of the OppNDA Engine
+- $\mathcal{M}_{\mathrm{overhead}}$ — Fixed memory overhead per worker process (default: $30\text{ MB}$)
 - $P$ — Number of concurrent worker processes
-- $\gamma$ — DataFrame expansion factor (empirically ~3.0×)
-- $size(r_i)$ — File size of the i-th largest file being processed
-- $M_{overhead}$ — Per-worker overhead (imports, buffers, etc.)
+- $\gamma$ — In-memory data expansion factor (default: $2.5\times$)
+- $S_{\max}$ — Maximum size of a simulation report processed in the batch ($S_{\max} = \max_i \mathrm{size}(r_i)$)
 
-### Optimal Worker Calculation
+> [!NOTE]
+> The bound in Eq. (1) is **conservative** because it assumes that every concurrent worker concurrently processes a report of maximum size $S_{\max}$.
 
-The optimal worker count is the largest integer satisfying the memory constraint:
+---
 
-$$P_{opt} = \max\{p \in \mathbb{Z}^+ \mid M(t)|_{P=p} \leq \eta \cdot M_{RAM}\}$$
+### 2. Memory-Feasibility Condition
+
+Let $\eta M_{\mathrm{RAM}}$ denote the maximum memory budget allocated to the multiprocessing workload, where $0 < \eta < 1$ and $M_{\mathrm{RAM}}$ is total system RAM. The memory-feasibility condition is:
+
+$$\mathcal{M}(P) \le \eta M_{\mathrm{RAM}} \tag{2}$$
+
+---
+
+### 3. Maximum Memory-Feasible Worker Count
+
+Solving Eq. (2) under the bound in Eq. (1) for $P$ yields the maximum number of memory-feasible worker processes:
+
+$$P_{\mathrm{mem}}^{\max} = \left\lfloor \frac{\eta M_{\mathrm{RAM}} - \mathcal{M}_{\mathrm{base}}}{\gamma S_{\max} + \mathcal{M}_{\mathrm{overhead}}} \right\rfloor \tag{3}$$
+
+---
+
+### 4. Maximum Feasible Worker Bound
+
+In addition to memory availability, the number of workers cannot exceed the number of available processing cores or the number of independent tasks. Thus, the maximum feasible worker count is bounded by:
+
+$$P_{\max} = \min \left\{ P_{\mathrm{CPU}}, P_{\mathrm{mem}}^{\max}, N_{\mathrm{tasks}} \right\} \tag{4}$$
 
 Where:
-- $\eta$ — RAM utilization threshold (default: 0.75)
-- $M_{RAM}$ — Total system RAM
+- $P_{\mathrm{CPU}}$ — Number of available CPU cores (`os.cpu_count()`)
+- $P_{\mathrm{mem}}^{\max}$ — Maximum memory-feasible workers from Eq. (3)
+- $N_{\mathrm{tasks}}$ — Number of independent visualization or analysis tasks in the queue
 
-This ensures the system never exceeds 75% RAM usage, leaving headroom for the OS and other processes.
+---
+
+### 5. Theoretical Worker-Selection Problem
+
+The memory-feasible bound does not necessarily correspond to the execution-time-optimal worker count, since increasing worker concurrency can introduce inter-process communication (IPC), coordination, and disk I/O bottlenecks. Accordingly, the theoretical worker-selection problem is formulated as:
+
+$$P^* = \underset{P \in \mathcal{P}}{\arg\min}\; T_{\mathrm{parallel}}(P) \tag{5}$$
+
+Where the feasible worker set is:
+
+$$\mathcal{P} = \left\{ P \in \mathbb{Z}^+ \mid 1 \le P \le P_{\max} \right\} \tag{6}$$
+
+---
+
+### Framework-Level Constants ($\eta$ and $\gamma$)
+
+The parameters $\eta$ and $\gamma$ are framework-level constants and do not alter underlying simulation behavior or vary across individual experiments:
+- **$\eta$ (RAM utilization threshold)**: Controls the fraction of system memory budget allocated to multiprocessing (default: `0.85`). Increasing $\eta$ permits a larger memory-feasible worker pool.
+- **$\gamma$ (Data expansion factor)**: Represents the expansion ratio of report data during in-memory tabular processing (default: `2.5`). Increasing $\gamma$ conservatively reduces the number of concurrent workers allowed under the same memory budget.
 
 ---
 
 ## Configuration Parameters
 
-### Default Values
+### Default Parameter Values
 
 | Parameter | Symbol | Default | Description |
 |-----------|--------|---------|-------------|
-| `ETA` | η | 0.90 | Maximum RAM utilization (90%) |
-| `GAMMA` | γ | 3.0 | DataFrame expansion factor |
-| `M_OVERHEAD_MB` | $M_{overhead}$ | 50 MB | Per-worker memory overhead |
-| `MIN_WORKERS` | — | 1 | Minimum worker processes |
-| `MAX_WORKERS` | — | 32 | Maximum worker processes |
-| `FALLBACK_WORKERS` | — | 8 | Default when psutil unavailable |
-| `SAFETY_ENABLED` | — | True | Enable/disable memory management |
-
-### Modifying Parameters
-
-
-#### Method 1: Programmatic Override
-
-```python
-from core.resource_manager import ResourceManager
-
-# Custom configuration
-rm = ResourceManager(
-    eta=0.85,           # Use up to 85% RAM
-    gamma=2.5,          # Lower expansion factor
-    overhead_mb=30,     # Reduced per-worker overhead
-    safety_enabled=True
-)
-
-workers = rm.get_optimal_workers(file_paths=my_files)
-```
-
-#### Method 2: Modify ResourceConfig Class
-
-Edit `core/resource_manager.py`:
-
-```python
-class ResourceConfig:
-    ETA = 0.80              # Increase to 80%
-    GAMMA = 2.5             # Adjust for your data
-    M_OVERHEAD_MB = 40      # Reduce overhead
-    MIN_WORKERS = 2         # Ensure at least 2 workers
-    MAX_WORKERS = 32        # Allow more on high-end systems
-    SAFETY_ENABLED = True
-```
+| `ETA` | $\eta$ | `0.85` | Fraction of system RAM budget (85%) |
+| `GAMMA` | $\gamma$ | `2.5` | In-memory report data expansion factor |
+| `M_OVERHEAD_MB` | $\mathcal{M}_{\mathrm{overhead}}$ | `30 MB` | Fixed per-worker memory overhead |
+| `DEFAULT_S_MAX_MB` | $S_{\max}$ | `10 MB` | Default report size when files not measured |
+| `MIN_WORKERS` | — | `1` | Lower bound of feasible set $\mathcal{P}$ |
+| `MAX_WORKERS` | — | `64` | Upper safety ceiling for worker concurrency |
+| `FALLBACK_WORKERS` | — | Auto | CPU count fallback when `psutil` is unavailable |
+| `SAFETY_ENABLED` | — | `True` | Enable/disable memory feasibility constraints |
 
 ---
 
-## Toggling Safety Features
-
-### Disable Memory Management (Maximum Performance)
-
-For systems with abundant RAM or when processing small files:
-
-```python
-from core.resource_manager import get_optimal_workers
-
-# Disable safety — uses FALLBACK_WORKERS (4) or CPU count
-workers = get_optimal_workers(safety_enabled=False)
-```
-
-**⚠️ Warning**: Disabling safety may cause:
-- Memory exhaustion on large datasets
-- OS swap thrashing
-- System unresponsiveness
-
-### Enable Safety (Default)
-
-```python
-workers = get_optimal_workers(safety_enabled=True)
-```
-
----
-
-## API Reference
+## Usage and API Reference
 
 ### `get_optimal_workers()`
 
-Convenience function for quick worker count calculation.
+Convenience function to compute $P^* \in \mathcal{P}$ directly.
 
 ```python
 from core.resource_manager import get_optimal_workers
 
-# Basic usage
+# 1. Automatic estimation using default system parameters
 workers = get_optimal_workers()
 
-# With file-based estimation
-workers = get_optimal_workers(file_paths=['report1.txt', 'report2.txt'])
+# 2. File-aware estimation (computes S_max and N_tasks from file list)
+workers = get_optimal_workers(file_paths=['report1.txt', 'report2.txt', 'report3.txt'])
 
-# Disable safety
+# 3. Explicit task bounding (Eq. 4: N_tasks)
+workers = get_optimal_workers(num_tasks=8)
+
+# 4. Disable safety bounds (uses CPU fallback)
 workers = get_optimal_workers(safety_enabled=False)
 ```
 
-**Returns**: `int` — Optimal number of worker processes
+---
 
 ### `ResourceManager` Class
 
-Full-featured resource manager with monitoring capabilities.
+Complete resource management interface with telemetry and monitoring.
 
 ```python
 from core.resource_manager import ResourceManager
 
-rm = ResourceManager(eta=0.75, gamma=3.0, overhead_mb=50)
+# Initialize with custom framework constants if needed
+rm = ResourceManager(
+    eta=0.85,          # RAM budget fraction
+    gamma=2.5,         # Expansion factor
+    overhead_mb=30,    # Per-worker overhead
+    safety_enabled=True
+)
 
-# Get optimal workers
-workers = rm.get_optimal_workers(file_paths=files)
+# Calculate memory-feasible worker bound P_mem_max (Eq. 3)
+p_mem = rm.get_memory_feasible_workers(s_max=15 * 1024 * 1024)
 
-# Get memory status
-status = rm.get_memory_status()
-print(f"Available RAM: {status['available_ram_mb']:.0f} MB")
-print(f"Recommended workers: {status['recommended_workers']}")
+# Calculate maximum feasible workers P_max (Eq. 4)
+p_max = rm.get_max_feasible_workers(num_tasks=12, file_paths=file_list)
 
-# Log status to console
-rm.log_status()
+# Retrieve comprehensive memory and model telemetry
+status = rm.get_memory_status(file_paths=file_list)
+print(f"Total RAM (M_RAM): {status['total_ram_gb']:.2f} GB")
+print(f"Baseline Footprint (M_base): {status['m_base_mb']:.1f} MB")
+print(f"Report Size Bound (S_max): {status['s_max_mb']:.1f} MB")
+print(f"Feasible Workers (P_max): {status['p_max']} (CPU: {status['p_cpu']})")
+
+# Log formatted status report to stdout
+rm.log_status(file_paths=file_list)
 ```
+
+---
 
 ### `MemoryEstimator` Class
 
-Low-level memory estimation.
+Analytical estimation utilities implementing Eq. (1).
 
 ```python
 from core.resource_manager import MemoryEstimator
 
-estimator = MemoryEstimator(gamma=3.0, overhead_mb=50)
+estimator = MemoryEstimator(gamma=2.5, overhead_mb=30)
 
-# Estimate single file
-file_mem = estimator.estimate_file_memory(file_size_bytes=10_000_000)
+# Estimate single report footprint: gamma * S + M_overhead
+single_file_mem = estimator.estimate_file_memory(file_size_bytes=10 * 1024 * 1024)
 
-# Estimate batch peak
-file_sizes = [5_000_000, 10_000_000, 3_000_000]
-peak_mem = estimator.estimate_batch_memory(file_sizes, num_workers=4)
+# Estimate upper memory bound M(P) for P workers (Eq. 1)
+bound = estimator.estimate_memory_bound(
+    p=4, 
+    s_max_bytes=10 * 1024 * 1024, 
+    m_base_bytes=150 * 1024 * 1024
+)
+
+# Extract maximum report size S_max from files
+s_max = estimator.get_s_max(file_paths=['sim_1.txt', 'sim_2.txt'])
 ```
+
+---
 
 ### `DynamicSemaphore` Class
 
-Adaptive concurrency control.
+Real-time concurrency throttle adjusting permits based on memory pressure.
 
 ```python
 from core.resource_manager import DynamicSemaphore
 
-sem = DynamicSemaphore(initial_permits=4, eta=0.75)
+sem = DynamicSemaphore(initial_permits=4, eta=0.85)
 
-# Use as context manager
+# Context manager usage
 with sem:
-    # Protected code runs here
-    process_file(file)
-
-# Manual acquire/release
-if sem.acquire(blocking=False):
-    try:
-        process_file(file)
-    finally:
-        sem.release()
+    process_simulation_report(file_path)
 ```
 
 ---
 
-## Integration Examples
+## Integration in OppNDA Pipelines
 
-### In Report Averager
-
-```python
-from core.resource_manager import get_optimal_workers
-from multiprocessing import Pool
-
-files = get_report_files()
-workers = get_optimal_workers(file_paths=files)
-
-with Pool(processes=workers) as pool:
-    results = pool.map(process_file, files)
-```
-
-### In Analysis Engine
+### Analysis Engine (`core/analysis.py`)
 
 ```python
 from core.resource_manager import ResourceManager
 
-rm = ResourceManager()
-rm.log_status()  # Print current memory state
+rm = ResourceManager(safety_enabled=True)
+num_processes = rm.get_optimal_workers(num_tasks=len(plot_jobs))
 
-workers = rm.get_optimal_workers()
-print(f"Using {workers} workers for plot generation")
+with Pool(processes=num_processes, initializer=_init_worker, initargs=(config, plots_dir)) as pool:
+    results = list(pool.imap_unordered(execute_plot_job, plot_jobs))
+```
+
+### Report Averager (`core/averager.py`)
+
+```python
+from core.resource_manager import ResourceManager
+
+rm = ResourceManager(safety_enabled=safety_enabled)
+num_processes = rm.get_optimal_workers(file_paths=filepaths, num_tasks=len(filepaths))
+
+with Pool(processes=num_processes) as pool:
+    results = pool.map(parse_report, filepaths)
 ```
 
 ---
 
-## Troubleshooting
+## Troubleshooting & Tuning
 
-### "Warning: psutil not installed"
-
-Install psutil for full functionality:
+### `Warning: psutil not installed`
+Install `psutil` for dynamic RAM and process RSS detection:
 ```bash
 pip install psutil
 ```
+Without `psutil`, conservative fallbacks ($8\text{ GB total RAM}, 4\text{ GB available}, 100\text{ MB baseline}$) are applied.
 
-Without psutil, the system uses conservative fallback values.
-
-### Processing is too slow
-
-1. Increase `ETA` to allow more RAM usage:
+### High Memory Pressure or Swapping
+If simulation reports are unusually complex or system RAM is constrained:
+1. Decrease $\eta$ (e.g., $\eta = 0.70$) to increase headroom:
    ```python
-   rm = ResourceManager(eta=0.85)
+   rm = ResourceManager(eta=0.70)
    ```
-
-2. Reduce `GAMMA` if your files are simple text:
+2. Increase $\gamma$ (e.g., $\gamma = 3.5$) for high data-expansion formats:
    ```python
-   rm = ResourceManager(gamma=2.0)
+   rm = ResourceManager(gamma=3.5)
    ```
-
-3. Disable safety (use with caution):
-   ```python
-   workers = get_optimal_workers(safety_enabled=False)
-   ```
-
-### System runs out of memory
-
-1. Decrease `ETA`:
-   ```python
-   rm = ResourceManager(eta=0.60)
-   ```
-
-2. Increase `GAMMA` for complex files:
-   ```python
-   rm = ResourceManager(gamma=4.0)
-   ```
-
-3. Close other applications to free RAM
-
----
-
-## References
-
-The memory management approach is inspired by:
-
-1. **Dynamic Process Pool Sizing** — Adapting multiprocessing to available resources
-2. **Memory-Aware Scheduling** — Common in HPC batch schedulers (SLURM, PBS)
-3. **Backpressure Mechanisms** — Preventing producer-consumer imbalance
-
----
-
-## Contributing
-
-To improve the memory models:
-
-1. Profile your specific workload using:
-   ```python
-   rm = ResourceManager()
-   rm.log_status()
-   ```
-
-2. Adjust `GAMMA` based on observed memory/file-size ratios
-
-3. Submit improvements via pull request with benchmark data

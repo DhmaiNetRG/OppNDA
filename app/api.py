@@ -53,6 +53,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Any
 from flask import Blueprint, jsonify, request, current_app, Response
+from werkzeug.utils import secure_filename
 
 # Import path utilities
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -218,7 +219,7 @@ Group.nrofHosts = {config['num_hosts']}
 
 ## Group 1 settings
 Group1.groupID = p
-Group1.numHosts = {config['num_hosts']}
+Group1.nrofHosts = {config['num_hosts']}
 
 ## Event settings
 Events.nrof = 1
@@ -1381,6 +1382,51 @@ def deep_merge(base: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
             result[key] = value
     
     return result
+
+
+@api_bp.route('/upload-data-files', methods=['POST'])
+def upload_data_files():
+    """Upload map/route/overlay assets into the project's data directory."""
+    try:
+        data_dir = current_app.config.get('DATA_DIR')
+        if not data_dir:
+            return jsonify({
+                'success': False,
+                'error': 'Data directory not configured'
+            }), 500
+
+        data_dir = Path(data_dir)
+        data_dir.mkdir(exist_ok=True)
+
+        uploaded_files = []
+        seen_names = set()
+
+        for storage in request.files.getlist('files'):
+            if not storage or not storage.filename:
+                continue
+
+            safe_name = secure_filename(Path(storage.filename).name)
+            if not safe_name or safe_name in seen_names:
+                continue
+
+            target_path = data_dir / safe_name
+            storage.save(target_path)
+            uploaded_files.append({
+                'name': safe_name,
+                'relative_path': f'data/{safe_name}',
+                'absolute_path': str(target_path)
+            })
+            seen_names.add(safe_name)
+
+        return jsonify({
+            'success': True,
+            'uploaded': uploaded_files
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 # ============================================================================

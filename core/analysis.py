@@ -774,10 +774,8 @@ class PlotGenerator:
                     ax.grid(False)
             
             output_path = os.path.join(output_dir, "pairplot.png")
-            output_path = os.path.join(output_dir, "pairplot.png")
             dpi = settings.get('general', {}).get('dpi', 150)
             g.fig.savefig(output_path, dpi=dpi, bbox_inches='tight')
-            plt.close(g.fig)
             plt.close(g.fig)
             
             print(f"  [OK] Pairplot", flush=True)
@@ -917,11 +915,11 @@ def main():
         print(f"Processing {expected_count} plots...")
         start_time = time.time()
         
-        # Dynamic worker calculation using ResourceManager
+        # Dynamic worker calculation using ResourceManager (Eq. 4 - Eq. 6)
         if RESOURCE_MANAGER_AVAILABLE:
             rm = ResourceManager(safety_enabled=True)
-            num_processes = min(rm.get_optimal_workers(), len(plot_jobs))
-            print(f"  Optimized Workers: {num_processes} (based on RAM/CPU)")
+            num_processes = rm.get_optimal_workers(num_tasks=len(plot_jobs))
+            print(f"  Optimized Workers: {num_processes} (based on RAM/CPU/Tasks)")
         else:
             num_processes = min(os.cpu_count() or 4, len(plot_jobs))
             print(f"  Workers: {num_processes} (CPU count)")

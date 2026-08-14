@@ -155,9 +155,7 @@
     "min_values_for_line": 2,
     "min_values_for_surface": 3
   },
-  "report_extension": ".txt",
   "report_types": [
     "MessageStatsReport"
-  ],
-  "test_field": "test_value"
+  ]
 }
