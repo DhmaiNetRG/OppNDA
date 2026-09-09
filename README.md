@@ -118,15 +118,50 @@ Build ML models to understand network performance:
 2. Choose target variable and predictors
 3. Train and compare multiple ML models (Linear, Ridge, Random Forest, etc.)
 
+---
+
+### Standalone Post-Processing (Direct CLI Execution)
+
+For research workloads, automated pipelines, remote SSH servers, or large-scale batch processing, running the Python post-processing modules **directly from the command line** via JSON configuration files is the **recommended standard practice**. It eliminates HTTP server overhead, prevents browser timeout disconnections, and allows seamless script automation.
+
+#### Workflow Step-by-Step
+
+1. **Edit JSON Configuration Files in `config/`:**
+   - **`config/averager_config.json`**: Set `folder` (e.g. `"reports/"`), `filename_pattern`, `report_types`, and `average_groups`.
+   - **`config/analysis_config.json`**: Set `directories.report_dir`, `directories.plots_dir`, `report_types`, and `enabled_plots`.
+   - **`config/regression_config.json`**: Set `input.csv_directory`, `targets`, and `models`.
+
+2. **Execute Modules Directly via Terminal:**
+
+```bash
+# 1. Aggregate raw report files across seeds
+python core/averager.py
+
+# 2. Generate publication plots and export CSV metrics
+python core/analysis.py
+
+# 3. Train multi-target ML regression models (optional)
+python core/regression.py
+```
+
+3. **Custom Configuration Paths & Worker Controls:**
+   - Pass a custom JSON configuration path as a command-line argument:
+     ```bash
+     python core/averager.py path/to/custom_averager_config.json
+     ```
+   - Explicitly control worker concurrency by adding `"num_processes": 8` to `averager_config.json` or `analysis_config.json`. If omitted or set to `null`, OppNDA automatically applies dynamic resource optimization ($P^*$).
+
+---
+
 ## Configuration
 
 Configuration files in `config/`:
 
 | File | Description |
 |------|-------------|
-| `averager_config.json` | Report averaging parameters |
-| `analysis_config.json` | Visualization and plot settings |
-| `regression_config.json` | ML model configurations |
+| `averager_config.json` | Report averaging parameters (input directory, patterns, group keys, worker count) |
+| `analysis_config.json` | Visualization and plot settings (plot types, fonts, DPI, metric inclusion) |
+| `regression_config.json` | ML model configurations (predictors, targets, cross-validation parameters) |
 
 See [`examples/`](examples/) for sample configurations.
 

@@ -161,8 +161,12 @@ class ReportAverager:
         self.validate_config()
         self.safety_enabled = safety_enabled
         
-        # Dynamic worker calculation using ResourceManager
-        if RESOURCE_MANAGER_AVAILABLE:
+        # Dynamic worker calculation using ResourceManager or explicit config override
+        if 'num_processes' in self.config:
+            self.num_processes = self.config['num_processes']
+        elif 'processes' in self.config:
+            self.num_processes = self.config['processes']
+        elif RESOURCE_MANAGER_AVAILABLE:
             self.resource_manager = ResourceManager(safety_enabled=safety_enabled)
             self.num_processes = self.resource_manager.get_optimal_workers()
         else:
@@ -297,8 +301,55 @@ class ReportAverager:
         
         return groups
     
-    def average_group(self, file_list):
-        """Average data from multiple files using multiprocessing"""
+    def preload_all_files(self, file_paths):
+        """Preload and parse all files in parallel with a single persistent worker pool."""
+        separator = self.config.get('data_separator', ':')
+        ignore_fields = set(self.config.get('ignore_fields', []))
+        
+        unique_paths = list(set(file_paths))
+        if not unique_paths:
+            return {}
+        
+        args_list = [(fp, separator, ignore_fields) for fp in unique_paths]
+        parsed_data = {}
+        
+        if len(unique_paths) > 1 and self.num_processes > 1:
+            try:
+                chunksize = max(1, len(unique_paths) // (self.num_processes * 4))
+                with Pool(processes=self.num_processes) as pool:
+                    results = pool.map(read_and_parse_file_parallel, args_list, chunksize=chunksize)
+                
+                for filepath, data in results:
+                    if data is not None:
+                        parsed_data[filepath] = data
+            except Exception as e:
+                print(f"Error in parallel preloading: {e}")
+                traceback.print_exc()
+                for fp in unique_paths:
+                    data = self.read_report_file(fp)
+                    if data is not None:
+                        parsed_data[fp] = data
+        else:
+            for fp in unique_paths:
+                data = self.read_report_file(fp)
+                if data is not None:
+                    parsed_data[fp] = data
+                    
+        return parsed_data
+
+    def average_group(self, file_list, parsed_cache=None):
+        """Average data from multiple files using in-memory preloaded cache or multiprocessing fallback."""
+        if parsed_cache is not None:
+            aggregated = defaultdict(list)
+            for filepath, _ in file_list:
+                data = parsed_cache.get(filepath)
+                if data is None:
+                    data = self.read_report_file(filepath)
+                if data is not None:
+                    for field, value in data.items():
+                        aggregated[field].append(value)
+            return average_group_data(dict(aggregated))
+
         separator = self.config.get('data_separator', ':')
         ignore_fields = set(self.config.get('ignore_fields', []))
         
@@ -406,8 +457,12 @@ class ReportAverager:
         
         # Validate folder
         if not os.path.exists(folder):
-            print(f"ERROR: Folder '{folder}' not found")
-            return
+            alt_folder = PROJECT_ROOT / folder
+            if alt_folder.exists():
+                folder = str(alt_folder)
+            else:
+                print(f"ERROR: Folder '{folder}' not found")
+                return
         
         # Collect all output templates from grouping strategies to exclude them
         exclude_patterns = []
@@ -470,6 +525,13 @@ class ReportAverager:
             print(f"\nFolder: {folder}")
             print(f"Files found: {len(all_files)}")
             
+            # Batch preload and parse all files once in parallel
+            print(f"Preloading and parsing {len(all_files)} files (Workers: {self.num_processes})...")
+            preload_start = time.time()
+            parsed_cache = self.preload_all_files(all_files)
+            preload_time = time.time() - preload_start
+            print(f"  Parsed {len(parsed_cache)}/{len(all_files)} files in {preload_time:.2f}s")
+            
             # Process each group independently for this report type
             processed = 0
             skipped = 0
@@ -505,7 +567,7 @@ class ReportAverager:
                     print(f"  Files: {num_files}")
                     
                     # Average the data
-                    averaged_data = self.average_group(file_list)
+                    averaged_data = self.average_group(file_list, parsed_cache=parsed_cache)
                     
                     if not averaged_data:
                         print(f"  Warning: No data to average")

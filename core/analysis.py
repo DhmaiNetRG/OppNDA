@@ -137,7 +137,10 @@ class SmartFileParser:
                 - metrics.ignore: List of fields to ignore
         """
         self.config = config
-        self.report_dir = config['directories']['report_dir']
+        report_dir = config['directories']['report_dir']
+        if not os.path.exists(report_dir) and (PROJECT_ROOT / report_dir).exists():
+            report_dir = str(PROJECT_ROOT / report_dir)
+        self.report_dir = report_dir
         self.separator = config['data_separator']
         self.metrics = config['metrics']['include']
         self.ignore_fields = set(config['metrics']['ignore'])
@@ -836,6 +839,8 @@ def main():
     strategy_analyzer = PlotStrategy(config)
     
     plots_dir = config['directories']['plots_dir']
+    if not os.path.isabs(plots_dir) and not os.path.exists(plots_dir):
+        plots_dir = str(PROJECT_ROOT / plots_dir)
     os.makedirs(plots_dir, exist_ok=True)
     
     # Load data
@@ -916,7 +921,13 @@ def main():
         start_time = time.time()
         
         # Dynamic worker calculation using ResourceManager (Eq. 4 - Eq. 6)
-        if RESOURCE_MANAGER_AVAILABLE:
+        if 'num_processes' in config:
+            num_processes = config['num_processes']
+            print(f"  Workers: {num_processes} (Config override)")
+        elif 'processes' in config:
+            num_processes = config['processes']
+            print(f"  Workers: {num_processes} (Config override)")
+        elif RESOURCE_MANAGER_AVAILABLE:
             rm = ResourceManager(safety_enabled=True)
             num_processes = rm.get_optimal_workers(num_tasks=len(plot_jobs))
             print(f"  Optimized Workers: {num_processes} (based on RAM/CPU/Tasks)")
