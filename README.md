@@ -171,7 +171,18 @@ OppNDA implements **dynamic memory management** and **bounded worker concurrency
 
 $$\mathcal{M}(P) \le \mathcal{M}_{\mathrm{base}} + P\left(\gamma S_{\max} + \mathcal{M}_{\mathrm{overhead}}\right) \le \eta M_{\mathrm{RAM}}$$
 
-$$P_{\max} = \min \left\{ P_{\mathrm{CPU}}, \; \left\lfloor \frac{\eta M_{\mathrm{RAM}} - \mathcal{M}_{\mathrm{base}}}{\gamma S_{\max} + \mathcal{M}_{\mathrm{overhead}}} \right\rfloor, \; N_{\mathrm{tasks}} \right\}$$
+
+$$
+P_{\max} = \min\{
+P_{\mathrm{CPU}},
+\lfloor
+\frac{\eta M_{\mathrm{RAM}} - \mathcal{M}_{\mathrm{base}}}
+{\gamma S_{\max} + \mathcal{M}_{\mathrm{overhead}}}
+\rfloor,
+N_{\mathrm{tasks}}
+\}
+$$
+
 
 ```python
 from core.resource_manager import get_optimal_workers
